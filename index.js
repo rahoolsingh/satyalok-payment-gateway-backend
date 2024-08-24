@@ -30,7 +30,7 @@ app.post('/order', async (req, res) => {
             merchantTransactionId: transactionId,
             name,
             amount: amount * 100, // Convert to smallest currency unit
-            redirectUrl: `http://localhost:${port}/status?id=${transactionId}`,
+            redirectUrl: `https://satyalok-payment-gateway-backend.onrender.com/status?id=${transactionId}`,
             redirectMode: "POST",
             mobileNumber: phone,
             paymentInstrument: {
@@ -91,9 +91,9 @@ app.post('/status', async (req, res) => {
 
         const response = await axios(options);
         if (response.data.success === true) {
-            return res.redirect(`http://localhost:5173/success`);
+            return res.redirect(`/success`);
         } else {
-            return res.redirect(`http://localhost:5173/failure`);
+            return res.redirect(`/failure`);
         }
     } catch (error) {
         console.error("Error in /status:", error);
