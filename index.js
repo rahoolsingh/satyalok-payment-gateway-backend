@@ -47,7 +47,7 @@ app.post('/order', async (req, res) => {
         const sha256 = crypto.createHash('sha256').update(stringToHash).digest('hex');
         const checksum = `${sha256}###${keyIndex}`;
 
-        const prodURL = "https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay";
+        const prodURL = "https://api.phonepe.com/apis/hermes/pg/v1/pay";
 
         const options = {
             method: 'POST',
@@ -82,7 +82,7 @@ app.post('/status', async (req, res) => {
 
         const options = {
             method: 'GET',
-            url: `https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/${merchantId}/${merchantTransactionId}`,
+            url: `https://api.phonepe.com/apis/hermes/pg/v1/status/${merchantId}/${merchantTransactionId}`,
             headers: {
                 accept: 'application/json',
                 'Content-Type': 'application/json',
