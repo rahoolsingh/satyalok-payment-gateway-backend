@@ -10,8 +10,9 @@ const frontendURL = process.env.FRONTEND_URL;
 
 const initiatePayment = async (req, res) => {
     try {
-        const { transactionId, name, amount, phone } = req.body;
-        console.log(req.body);
+        const { name, amount, phone } = req.body;
+        const transactionId = `HOPE${Date.now()}`
+        console.log("\n\n BODY DATA =>>>>>>>>>>>>>>>>>>>>>>>>>>>>", req.body);
         const data = {
             merchantId,
             merchantTransactionId: transactionId,
