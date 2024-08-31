@@ -6,7 +6,7 @@ const transporter = nodemailer.createTransport({
     port: process.env.SMTP_PORT, // Correct port for secure SMTP (SSL)
     secure: true, // Use true for SSL
     auth: {
-        user: process.env.SMTP_EMAIL, 
+        user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
     },
 });
@@ -23,6 +23,13 @@ const sendMail = (to, subject, text, html) => {
     return new Promise((resolve, reject) => {
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
+                console.log(
+                    process.env.SMTP_EMAIL,
+                    process.env.SMTP_PASSWORD,
+                    process.env.SMTP_HOST,
+                    process.env.SMTP_PORT
+                );
+
                 console.error("Error sending email:", error);
                 reject(error);
             } else {
