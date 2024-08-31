@@ -1,7 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
-import { checkStatus, initiatePayment } from "./src/controllers/payment.controller.js";
+import {
+    checkStatus,
+    initiatePayment,
+} from "./src/controllers/payment.controller.js";
 import cors from "cors";
+import { testmail } from "./src/controllers/sendmail.controller.js";
 
 const app = express();
 
@@ -23,6 +27,8 @@ app.get("/", (req, res) => {
 app.post("/order", initiatePayment);
 
 app.get("/status", checkStatus);
+
+app.get("/testmail", testmail);
 
 app.listen(PORT, () => {
     console.log("Server running on port 8000");
