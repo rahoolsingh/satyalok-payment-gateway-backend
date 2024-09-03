@@ -1,6 +1,5 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
-import path from "path";
 
 // Helper function to wrap a stream in a promise
 const streamToPromise = (stream) => {
