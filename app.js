@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import {
     checkStatus,
     initiatePayment,
+    paymentConfirmation,
 } from "./src/controllers/payment.controller.js";
 import cors from "cors";
 import {
@@ -36,6 +37,8 @@ app.get("/", (req, res) => {
 app.post("/order", initiatePayment);
 
 app.get("/status", checkStatus);
+
+app.get("/confirmation", paymentConfirmation);
 
 app.get("/testmail", testmail);
 
