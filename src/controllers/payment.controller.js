@@ -7,7 +7,7 @@ import Donation from "../models/donation.model.js";
 import generateCertificate, {
     deleteCertificate,
 } from "../services/generateCertificate.service.js";
-import { sendWithAttachment } from "../services/sendmail.service.js";
+import { sendMail, sendWithAttachment } from "../services/sendmail.service.js";
 
 dotenv.config();
 
@@ -58,18 +58,28 @@ const paymentConfirmation = async (req, res) => {
             merchantTransactionId: req.query.id,
         });
 
-        await generateCertificate(updatedData);
+        if (updatedData.taxBenefit) {
+            await generateCertificate(updatedData);
 
-        await sendWithAttachment(
-            updatedData.email,
-            "Donation Receipt",
-            "Thank you for your donation!",
-            `<p>Thank you for your donation!</p>`,
-            "donation-receipt.pdf",
-            `./Donation_Receipt.pdf`
-        );
+            await sendWithAttachment(
+                updatedData.email,
+                "Donation Receipt",
+                "Thank you for your donation!",
+                `<p>Thank you for your donation!</p>`,
+                "donation-receipt.pdf",
+                `./Donation_Receipt.pdf`
+            );
 
-        await deleteCertificate();
+            await deleteCertificate();
+        } else {
+            await sendMail(
+                updatedData.email,
+                "Donation Receipt",
+                "Thank you for your donation!",
+                `<p>Thank you for your donation!
+                ${updatedData.amount} has been received from ${updatedData.name} on ${updatedData.createdAt}.</p>`
+            );
+        }
     }
 
     console.log("Payment confirmation data", updatedData);
