@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 8000;
 
 app.get("/", (req, res) => {
-    console.log(req.query);
+    // console.log(req.query);
     if (req.query.text) {
         return res.send(`Hello, ${req.query.text}!`);
     }

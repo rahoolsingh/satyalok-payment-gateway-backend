@@ -99,7 +99,7 @@ const paymentConfirmation = async (req, res) => {
         }
     }
 
-    console.log("Payment confirmation data", updatedData);
+    // console.log("Payment confirmation data", updatedData);
 
     return res.redirect(`${frontendURL}/status/${req.query.id}`);
 };

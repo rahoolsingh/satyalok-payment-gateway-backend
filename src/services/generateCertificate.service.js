@@ -137,7 +137,7 @@ const generateCertificate = async ({
 
             // Finalize the PDF file after all content is added
             doc.end();
-            console.log("PDF created successfully with QR code");
+            // console.log("PDF created successfully with QR code");
         })
         .catch((err) => {
             console.error("An error occurred:", err);
@@ -154,7 +154,7 @@ const deleteFiles = async (merchantTransactionId) => {
                 );
                 reject(err);
             } else {
-                console.log("PDF file deleted successfully");
+                // console.log("PDF file deleted successfully");
                 resolve();
             }
         });
@@ -167,7 +167,7 @@ const deleteFiles = async (merchantTransactionId) => {
                 );
                 reject(err);
             } else {
-                console.log("QR code image deleted successfully");
+                // console.log("QR code image deleted successfully");
                 resolve();
             }
         });
