@@ -51,7 +51,7 @@ const generateCertificate = async ({
         return "Data mismatch";
     }
 
-    const amount = pgResponse.data.amount; 
+    const amount = pgResponse.data.amount;
     const donationDate = convertToTimestamp(pgResponse.data.transactionId);
     // Create a new PDF document
     const doc = new PDFDocument({
@@ -61,7 +61,7 @@ const generateCertificate = async ({
     });
 
     // Stream the PDF to a file
-    doc.pipe(fs.createWriteStream("Donation_Receipt.pdf"));
+    doc.pipe(fs.createWriteStream(`${merchantTransactionId}.pdf`));
 
     // Add background image
     doc.image("certificate.png", 0, 0, { width: 841.89 });
@@ -96,7 +96,7 @@ const generateCertificate = async ({
 
     // Generate and add QR code, then finalize PDF
     QRCode.toFile(
-        "qr.png",
+        `${merchantTransactionId}-qr.png`,
         `{
     receipt: ${merchantTransactionId},
     pan: ${panNumber},
@@ -112,7 +112,10 @@ const generateCertificate = async ({
     )
         .then(() => {
             // Add the QR code image to the PDF
-            doc.image("qr.png", 705, 70, { width: 80, align: "right" });
+            doc.image(`${merchantTransactionId}-qr.png`, 705, 70, {
+                width: 80,
+                align: "right",
+            });
 
             // Add donation confirmation text
             doc.fontSize(14)
@@ -141,20 +144,36 @@ const generateCertificate = async ({
         });
 };
 
-const deleteCertificate = async () => {
+const deleteFiles = async (merchantTransactionId) => {
     return new Promise((resolve, reject) => {
-        fs.unlink("./Donation_Receipt.pdf", (err) => {
+        fs.unlink(`${merchantTransactionId}.pdf`, (err) => {
             if (err) {
-                console.error("Error deleting file:", err);
+                console.error(
+                    "An error occurred while deleting PDF file:",
+                    err
+                );
                 reject(err);
             } else {
-                console.log("File deleted successfully");
+                console.log("PDF file deleted successfully");
+                resolve();
+            }
+        });
+
+        fs.unlink(`${merchantTransactionId}-qr.png`, (err) => {
+            if (err) {
+                console.error(
+                    "An error occurred while deleting QR code image:",
+                    err
+                );
+                reject(err);
+            } else {
+                console.log("QR code image deleted successfully");
                 resolve();
             }
         });
     });
 };
 
-export { deleteCertificate };
+export { generateCertificate, deleteFiles };
 
 export default generateCertificate;

@@ -4,8 +4,9 @@ import {
     paymentStatus,
 } from "../services/PhonePe/payment.service.js";
 import Donation from "../models/donation.model.js";
-import generateCertificate, {
-    deleteCertificate,
+import {
+    generateCertificate,
+    deleteFiles,
 } from "../services/generateCertificate.service.js";
 import { sendMail, sendWithAttachment } from "../services/sendmail.service.js";
 
@@ -13,8 +14,13 @@ dotenv.config();
 
 const frontendURL = process.env.FRONTEND_URL;
 
+const randomChar = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    return chars.charAt(Math.floor(Math.random() * chars.length));
+};
+
 const initiatePayment = async (req, res) => {
-    const merchantTransactionId = `HOPE${Date.now()}`;
+    const merchantTransactionId = `HOPE${Date.now()}${randomChar()}`;
     const donation = new Donation({
         name: req.body.name,
         email: req.body.email,
@@ -69,11 +75,11 @@ const paymentConfirmation = async (req, res) => {
                 ${updatedData.amount} has been received from ${updatedData.name} on ${updatedData.createdAt}.</p>
                 <p>Please find the attached donation receipt for your reference.</p>`,
 
-                    "donation-receipt.pdf",
-                    `./Donation_Receipt.pdf`
+                    `${updatedData.merchantTransactionId}.pdf`,
+                    `./${updatedData.merchantTransactionId}.pdf`
                 );
 
-                await deleteCertificate();
+                await deleteFiles(updatedData.merchantTransactionId);
             } else {
                 await sendMail(
                     updatedData.email,

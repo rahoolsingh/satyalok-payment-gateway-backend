@@ -6,10 +6,6 @@ import {
     paymentConfirmation,
 } from "./src/controllers/payment.controller.js";
 import cors from "cors";
-import {
-    testmail,
-    testMailWithAttachment,
-} from "./src/controllers/sendmail.controller.js";
 import connectDB from "./src/db/index.js";
 
 const app = express();
@@ -39,10 +35,6 @@ app.post("/order", initiatePayment);
 app.get("/status", checkStatus);
 
 app.get("/confirmation", paymentConfirmation);
-
-app.get("/testmail", testmail);
-
-app.get("/testmailwithattachment", testMailWithAttachment);
 
 connectDB().then(() => {
     app.listen(PORT, () => {

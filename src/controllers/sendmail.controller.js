@@ -1,4 +1,7 @@
-import generateCertificate, { deleteCertificate } from "../services/generateCertificate.service.js";
+import {
+    generateCertificate,
+    deleteFiles,
+} from "../services/generateCertificate.service.js";
 import { sendMail, sendWithAttachment } from "../services/sendmail.service.js";
 
 const testmail = async (req, res) => {
@@ -26,8 +29,8 @@ const testMailWithAttachment = async (req, res) => {
             "output.pdf",
             "./output.pdf"
         );
-        
-        await deleteCertificate();
+
+        await deleteFiles();
 
         res.send("Email sent with attachment!");
     } catch (error) {
