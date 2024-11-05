@@ -7,6 +7,7 @@ import {
 } from "./src/controllers/payment.controller.js";
 import cors from "cors";
 import connectDB from "./src/db/index.js";
+import { donationReceiptEmailTemplate } from "./src/services/emailTemplate.js";
 
 const app = express();
 
@@ -40,8 +41,25 @@ app.get("/status", checkStatus);
 
 app.get("/confirmation", paymentConfirmation);
 
-connectDB().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-    });
+app.get("/emailTemplate", (req, res) => {
+    res.send(
+        donationReceiptEmailTemplate(
+            100,
+            "123456",
+            "2021-09-01",
+            "123456",
+            "PhonePe",
+            "John Doe"
+        )
+    );
+});
+
+// connectDB().then(() => {
+//     app.listen(PORT, () => {
+//         console.log(`Server running on port ${PORT}: http://localhost:${PORT}`);
+//     });
+// });
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}: http://localhost:${PORT}`);
 });
