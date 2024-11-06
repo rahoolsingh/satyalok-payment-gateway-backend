@@ -9,6 +9,7 @@ import {
     deleteFiles,
 } from "../services/generateCertificate.service.js";
 import { sendMail, sendWithAttachment } from "../services/sendmail.service.js";
+import { donationReceiptEmailTemplate } from "../services/emailTemplate.js";
 
 dotenv.config();
 
@@ -81,6 +82,14 @@ const paymentConfirmation = async (req, res) => {
 
                 await deleteFiles(updatedData.merchantTransactionId);
             } else {
+                const emailTemplate = donationReceiptEmailTemplate(
+                    updatedData.amount,
+                    updatedData.merchantTransactionId,
+                    updatedData.createdAt,
+                    "",
+                    "",
+                    updatedData.name
+                );
                 await sendMail(
                     updatedData.email,
                     "Donation Receipt From Satyalok - A New Hope",
