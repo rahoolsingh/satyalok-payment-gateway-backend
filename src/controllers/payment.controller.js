@@ -9,7 +9,11 @@ import {
     deleteFiles,
 } from "../services/generateCertificate.service.js";
 import { sendMail, sendWithAttachment } from "../services/sendmail.service.js";
-import { donationReceiptEmailTemplate } from "../services/emailTemplate.js";
+import {
+    donationReceiptEmailTemplate,
+    paymentEmailTemplate,
+} from "../services/emailTemplate.js";
+import QuizChamp from "../models/quizchamp.model.js";
 
 dotenv.config();
 
@@ -49,10 +53,46 @@ const initiatePayment = async (req, res) => {
     }
 };
 
+const initiateQuizChampPayment = async (req, res) => {
+    const merchantTransactionId = `QC25${Date.now()}${randomChar()}`;
+    const donation = new Donation({
+        photo: req.files.photo[0].url,
+        name: req.body.name,
+        fatherName: req.body.fatherName,
+        motherName: req.body.motherName,
+        email: req.body.email,
+        mobile: req.body.phone,
+        group: req.body.group,
+        class: req.body.class,
+        schoolName: req.body.schoolName,
+        mediumOfStudy: req.body.mediumOfStudy,
+        aadhaarNumber: req.body.aadhaarNumber,
+        aadhaarCardPhoto: req.files.aadhaarCardPhoto[0].url,
+        amount: req.body.amount,
+        merchantTransactionId: merchantTransactionId,
+    });
+
+    try {
+        const response = await createOrder(
+            req.body.name,
+            req.body.amount,
+            req.body.phone,
+            merchantTransactionId
+        );
+        await donation.save();
+        return res.json(response);
+    } catch (error) {
+        console.error("Error in /order:", error);
+        return res.status(500).json({
+            error: "An error occurred while initiating the payment.",
+        });
+    }
+};
+
 const paymentConfirmation = async (req, res) => {
     const status = await paymentStatus(req.query.id);
     let updatedData = {};
-    if (status.success) {
+    if (status.success && req.query.id.startsWith("HOPE")) {
         await Donation.updateOne(
             { merchantTransactionId: req.query.id },
             {
@@ -106,6 +146,44 @@ const paymentConfirmation = async (req, res) => {
         }
     }
 
+    if (status.success && req.query.id.startsWith("QC25")) {
+        await QuizChamp.updateOne(
+            { merchantTransactionId: req.query.id },
+            {
+                success: true,
+                pgResponse: status,
+            }
+        );
+
+        updatedData = await QuizChamp.findOne({
+            merchantTransactionId: req.query.id,
+        });
+        if (!updatedData.sendMail) {
+            const emailTemplate = paymentEmailTemplate(
+                updatedData.amount,
+                updatedData.merchantTransactionId,
+                updatedData.createdAt,
+                updatedData.pgResponse.data.transactionId,
+                updatedData.name,
+                updatedData.success
+            );
+
+            await sendMail(
+                updatedData.email,
+                "Payment Receipt From Satyalok - A New Hope",
+                `Thank you for your payment! INR ${updatedData.amount} has been received from ${updatedData.name} on ${updatedData.createdAt}.`,
+                emailTemplate
+            );
+
+            await QuizChamp.updateOne(
+                { merchantTransactionId: req.query.id },
+                {
+                    sendMail: true,
+                }
+            );
+        }
+    }
+
     return res.redirect(`${frontendURL}/status/${req.query.id}`);
 };
 
@@ -115,4 +193,9 @@ const checkStatus = async (req, res) => {
     return res.json(status);
 };
 
-export { initiatePayment, checkStatus, paymentConfirmation };
+export {
+    initiatePayment,
+    initiateQuizChampPayment,
+    checkStatus,
+    paymentConfirmation,
+};

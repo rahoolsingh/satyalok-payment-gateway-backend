@@ -3,11 +3,13 @@ import dotenv from "dotenv";
 import {
     checkStatus,
     initiatePayment,
+    initiateQuizChampPayment,
     paymentConfirmation,
 } from "./src/controllers/payment.controller.js";
 import cors from "cors";
 import connectDB from "./src/db/index.js";
 import { donationReceiptEmailTemplate } from "./src/services/emailTemplate.js";
+import fileUpload from "./src/middleware/fileUpload.middleware.js";
 
 const app = express();
 
@@ -35,6 +37,8 @@ app.get("/", (req, res) => {
 });
 
 app.post("/order", initiatePayment);
+
+app.post("/quizChampOrder", fileUpload, initiateQuizChampPayment);
 
 app.get("/status", checkStatus);
 

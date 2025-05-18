@@ -537,4 +537,96 @@ const donationReceiptEmailTemplate = (
     `;
 };
 
-export { donationReceiptEmailTemplate };
+const paymentEmailTemplate = (
+    amount,
+    refNumber,
+    paymentTime,
+    transactionId,
+    payerName,
+    status
+) => {
+    return `
+  <!DOCTYPE html>
+  <html lang="en" style="padding: 0; margin: 0">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="x-apple-disable-message-reformatting" />
+      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+      <meta name="format-detection" content="telephone=no" />
+      <title>Payment Confirmation</title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto:400,700" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700" rel="stylesheet" />
+    </head>
+    <body
+      style="
+        font-family: 'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 20px;
+      "
+    >
+      <div style="max-width: 600px; margin: auto; background: #fff; padding: 30px; border-radius: 8px;">
+
+        <!-- Logo Section -->
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img
+            src="https://res.cloudinary.com/drd5iva1i/image/upload/b_rgb:FFFFFF/v1730919455/b965f91b-321f-4ed6-97f9-1908840d5731.png"
+            alt="Quiz Champ Logo"
+            style="max-width: 160px; height: auto;"
+          />
+        </div>
+
+        <h2 style="color: #2e86de; text-align: center;">Payment Confirmation</h2>
+        <p style="font-size: 16px; color: #333;">
+          Hello <strong>${payerName}</strong>,
+        </p>
+        <p style="font-size: 16px; color: #333;">
+          Thank you for your payment. Here are the details of your transaction:
+        </p>
+
+        <table style="width: 100%; font-size: 15px; border-collapse: collapse; margin-top: 20px;">
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 8px;">Reference Number:</td>
+            <td style="padding: 8px;"><strong>${refNumber}</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 8px;">Transaction ID:</td>
+            <td style="padding: 8px;">${transactionId}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 8px;">Payment Time:</td>
+            <td style="padding: 8px;">${paymentTime}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 8px;">Amount Paid:</td>
+            <td style="padding: 8px;">₹${amount}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px;">Status:</td>
+            <td style="padding: 8px; color: ${
+                status === "Success" ? "green" : "red"
+            };"><strong>${status}</strong></td>
+          </tr>
+        </table>
+
+        <p style="font-size: 15px; color: #666; margin-top: 20px;">
+          If you have any questions or concerns, please feel free to contact our support team.
+        </p>
+
+        <p style="font-size: 15px; color: #333;">
+          Regards,<br />
+          Quiz Champ Team,<br />
+          Satyalok - A New Hope
+        </p>
+
+        <hr style="margin-top: 30px;" />
+        <p style="text-align: center; font-size: 13px; color: #999;">
+          This is an automated email. Please do not reply.
+        </p>
+      </div>
+    </body>
+  </html>
+  `;
+};
+
+export { donationReceiptEmailTemplate, paymentEmailTemplate };
