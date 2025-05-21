@@ -604,8 +604,8 @@ const paymentEmailTemplate = (
           <tr>
             <td style="padding: 8px;">Status:</td>
             <td style="padding: 8px; color: ${
-                status === "Success" ? "green" : "red"
-            };"><strong>${status}</strong></td>
+                status ? "green" : "red"
+            };"><strong>${status ? "Success" : "Failed"}</strong></td>
           </tr>
         </table>
 
