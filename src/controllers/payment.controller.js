@@ -150,7 +150,7 @@ const paymentConfirmation = async (req, res) => {
         }
     }
 
-    if (status.success && req.query.id.startsWith("QC25")) {
+    if (status.success && req.query.id.startsWith("QC")) {
         await QuizChamp.updateOne(
             { merchantTransactionId: req.query.id },
             {
@@ -188,7 +188,7 @@ const paymentConfirmation = async (req, res) => {
         }
     }
 
-    return res.redirect(`${frontendURL}/status/${req.query.id}`);
+    return res.redirect(`https://quizchamp.satyalok.in/status/${req.query.id}`);
 };
 
 const checkStatus = async (req, res) => {
