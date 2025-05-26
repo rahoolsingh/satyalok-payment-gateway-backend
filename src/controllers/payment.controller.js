@@ -189,8 +189,12 @@ const paymentConfirmation = async (req, res) => {
                     "Tax Benefit Donation Receipt From Satyalok - A New Hope",
                     `Thank you for your donation! INR ${updatedData.amount} has been received from ${updatedData.name} on ${updatedData.createdAt}.`,
                     emailTemplate,
-                    `${updatedData.merchantTransactionId}.pdf`,
-                    `./${updatedData.merchantTransactionId}.pdf`
+                    [
+                        {
+                            filename: `${updatedData.merchantTransactionId}.pdf`,
+                            path: `./${updatedData.merchantTransactionId}.pdf`,
+                        },
+                    ]
                 );
 
                 await deleteFiles(updatedData.merchantTransactionId);
