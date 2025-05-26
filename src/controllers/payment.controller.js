@@ -59,7 +59,7 @@ const initiatePayment = async (req, res) => {
 
 const initiateQuizChampPayment = async (req, res) => {
     const merchantTransactionId = `QC25${Date.now()}${randomChar()}`;
-    const amount = req.body.group === "A" ? 1 : req.body.group === "B" ? 2 : 0;
+    const amount = req.body.group === "A" ? 15 : req.body.group === "B" ? 20 : 0;
 
     // check email duplicate
     const existingRecord = await QuizChamp.findOne({
