@@ -28,16 +28,16 @@ async function runVerificationJob() {
     const processRecord = async (record, isQuiz = false) => {
         const Model = isQuiz ? QuizChamp : Donation;
 
-        if (record.verificationRetryCount >= 5) {
+        if (record.verificationRetryCount >= 3) {
             await Model.updateOne(
                 { _id: record._id },
                 { verifiedFailed: true }
             );
             console.log(
-                `🚫 Marked ${record.merchantTransactionId} as verifiedFailed after 5 retries`
+                `🚫 Marked ${record.merchantTransactionId} as verifiedFailed after 3 retries`
             );
             sendMobileLog(
-                `Marked ${record.merchantTransactionId} as verifiedFailed after 5 retries`
+                `Marked ${record.merchantTransactionId} as verifiedFailed after 3 retries`
             );
 
             return;
@@ -51,9 +51,7 @@ async function runVerificationJob() {
                 `❌ Error fetching status for ${record.merchantTransactionId}:`,
                 err
             );
-            sendMobileLogWithError(
-                `Error fetching status for ${record.merchantTransactionId}: ${err.message}`
-            );
+
             return;
         }
 
@@ -81,9 +79,6 @@ async function runVerificationJob() {
                     `❌ Error in paymentConfirmation for ${record.merchantTransactionId}:`,
                     err
                 );
-                sendMobileLogWithError(
-                    `Error in paymentConfirmation for ${record.merchantTransactionId}: ${err.message}`
-                );
             }
         } else {
             await Model.updateOne(
@@ -92,9 +87,6 @@ async function runVerificationJob() {
             );
             console.log(
                 `🔁 Retry count increased for ${record.merchantTransactionId}`
-            );
-            sendMobileLog(
-                `Retry count increased for ${record.merchantTransactionId}`
             );
         }
     };
