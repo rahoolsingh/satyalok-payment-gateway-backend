@@ -3,8 +3,6 @@ import Admin from "../models/admin.model.js";
 const verifyAdmin = async (req, res, next) => {
     const token = req?.cookies?.satTkn;
 
-    console.log("Verifying admin token:", req);
-
     if (!token) {
         return res.status(401).json({
             success: false,
