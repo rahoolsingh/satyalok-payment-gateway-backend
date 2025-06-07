@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import Verification from "../models/verification.model.js";
 import { otpEmailTemplate } from "../services/emailTemplate.js";
 import { sendMail } from "../services/sendmail.service.js";
+import QuizChamp from "../models/quizchamp.model.js";
 
 const sendEmailVerificationOTP = async (req, res) => {
     const { email } = req.body;
@@ -32,6 +33,20 @@ const sendEmailVerificationOTP = async (req, res) => {
             });
         }
         await verificationRecord.save();
+
+        // check if email exists in QuizChamp and success is true
+        const quizChampRecord = await QuizChamp.findOne({
+            email: email,
+            success: true,
+        });
+
+        if (quizChampRecord) {
+            // If the email exists in QuizChamp, return response already a participant check your mail for admit card
+            return res.status(400).json({
+                message:
+                    "You are already a participant. Check your email for the admit card.",
+            });
+        }
 
         // Send the OTP via email
         const emailTemplate = otpEmailTemplate(generatedOtp);
