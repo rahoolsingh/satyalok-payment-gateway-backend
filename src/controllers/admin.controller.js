@@ -248,13 +248,13 @@ const resendEmail = async (req, res) => {
 
 // Function to mark attendance for a student with timestamp and get the group from frontend
 const markAttendance = async (req, res) => {
-    const { roll, txnId, group } = req.body;
+    const { roll, admitId, group } = req.body;
 
-    console.log("Marking attendance for:", roll, txnId, group);
+    console.log("Marking attendance for:", roll, admitId, group);
 
     try {
         // Validate input
-        if (!roll || !txnId || !group) {
+        if (!roll || !admitId || !group) {
             return res.status(400).json({
                 success: false,
                 message: "Roll number, transaction ID, and group are required.",
@@ -271,6 +271,14 @@ const markAttendance = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: "Student not found or Group mismatch.",
+            });
+        }
+
+        // check txnId match with merchantTransactionId
+        if (student.merchantTransactionId !== admitId) {
+            return res.status(400).json({
+                success: false,
+                message: "Reference ID does not match.",
             });
         }
 
