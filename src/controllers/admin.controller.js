@@ -66,7 +66,6 @@ const adminLogin = async (req, res) => {
             success: true,
             message: "Login successful.",
         });
-
     } catch (error) {
         console.error("Login error:", error);
         res.status(500).json({
@@ -247,4 +246,53 @@ const resendEmail = async (req, res) => {
     }
 };
 
-export { adminLogin, listStudents, resendEmail, adminLogout };
+// Function to mark attendance for a student with timestamp and get the group from frontend
+const markAttendance = async (req, res) => {
+    const { roll, txnId, group } = req.body;
+
+    console.log("Marking attendance for:", roll, txnId, group);
+
+    try {
+        // Validate input
+        if (!roll || !txnId || !group) {
+            return res.status(400).json({
+                success: false,
+                message: "Roll number, transaction ID, and group are required.",
+            });
+        }
+
+        // Find student by roll number
+        const student = await QuizChamp.findOne({
+            roll,
+            group,
+        });
+
+        if (!student) {
+            return res.status(404).json({
+                success: false,
+                message: "Student not found or Group mismatch.",
+            });
+        }
+
+        // Update attendance in IST (Indian Standard Time)
+        student.attendance = true;
+        student.attendanceTimeStamp = new Date().toLocaleString("en-US", {
+            timeZone: "Asia/Kolkata",
+        });
+
+        await student.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Attendance marked successfully.",
+        });
+    } catch (error) {
+        console.error("Error marking attendance:", error);
+        res.status(500).json({
+            success: false,
+            message: "Internal server error.",
+        });
+    }
+};
+
+export { adminLogin, listStudents, resendEmail, adminLogout, markAttendance };

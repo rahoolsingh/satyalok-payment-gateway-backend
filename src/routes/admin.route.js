@@ -4,6 +4,7 @@ import {
     adminLogin,
     adminLogout,
     listStudents,
+    markAttendance,
     resendEmail,
 } from "../controllers/admin.controller.js";
 import Admin from "../models/admin.model.js";
@@ -18,6 +19,8 @@ router.post("/logout", verifyAdmin, adminLogout);
 router.get("/students", verifyAdmin, listStudents);
 
 router.post("/resend", verifyAdmin, resendEmail);
+
+router.post("/attendance", verifyAdmin, markAttendance);
 
 //get function to create a new admin
 router.post("/create", async (req, res) => {

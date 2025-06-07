@@ -104,6 +104,14 @@ const quizChampSchema = new mongoose.Schema(
             required: true,
             default: false,
         },
+        attendance: {
+            type: Boolean,
+            required: true,
+            default: false,
+        },
+        attendanceTimeStamp: {
+            type: Date,
+        },
     },
     { timestamps: true }
 );
