@@ -21,6 +21,10 @@ import cookieParser from "cookie-parser";
 
 import "./src/cron/server.js";
 import verifyAdmin from "./src/middleware/verifyAdmin.middleware.js";
+import {
+    getParticipantData,
+    getRollNumberWithEmail,
+} from "./src/controllers/result.controller.js";
 
 const app = express();
 
@@ -67,6 +71,11 @@ app.get("/confirmation", paymentConfirmation);
 app.post("/send-verification-code", sendEmailVerificationOTP);
 
 app.post("/verify-code", verifyEmailOTP);
+
+// get roll number with email and roll number
+app.post("/get-roll-number", getRollNumberWithEmail);
+
+app.post("/get-participant-data", getParticipantData);
 
 connectDB().then(() => {
     app.listen(PORT, () => {
