@@ -47,6 +47,7 @@ export const getRollNumberWithEmail = async (req, res) => {
             message: "Data found",
             data: {
                 roll: quizChamp.roll,
+                group: quizChamp.group,
             },
         });
     } catch (error) {
