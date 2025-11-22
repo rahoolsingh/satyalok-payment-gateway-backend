@@ -108,8 +108,8 @@ async function runVerificationJob() {
     sendMobileLog("Verification retry job completed.");
 }
 
-// fucntion to check if success is true and send mail if not sent
-cron.schedule("0 */6 * * *", async () => {
+// fucntion to check if success is true and send mail if not sent: run on start and then every 6 hours
+cron.schedule("0 */6 * * *", async () => { // runs when server starts and then every 6 hours
     console.log("⏳ Running donation mail resend job...");
     sendMobileLog("Donation mail resend job started.");
 
@@ -145,4 +145,7 @@ cron.schedule("0 */6 * * *", async () => {
     console.log("✅ Donation mail resend job completed.");
     sendMobileLog("Donation mail resend job completed.");
 
-});
+}, {
+    scheduled: true, timezone: "Asia/Kolkata", runOnInit: true
+}
+);
