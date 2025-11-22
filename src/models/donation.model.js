@@ -68,6 +68,7 @@ const donationSchema = new mongoose.Schema(
             required: true,
             default: false,
         },
+        
     },
     { timestamps: true }
 );

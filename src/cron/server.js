@@ -67,8 +67,7 @@ async function runVerificationJob() {
                 status
             );
             sendMobileLogWithError(
-                `Invalid status response for ${
-                    record.merchantTransactionId
+                `Invalid status response for ${record.merchantTransactionId
                 }: ${JSON.stringify(status)}`
             );
             return;
@@ -108,3 +107,42 @@ async function runVerificationJob() {
     console.log("✅ Verification retry job completed.");
     sendMobileLog("Verification retry job completed.");
 }
+
+// fucntion to check if success is true and send mail if not sent
+cron.schedule("0 */6 * * *", async () => {
+    console.log("⏳ Running donation mail resend job...");
+    sendMobileLog("Donation mail resend job started.");
+
+    const donationsToResend = await Donation.find({
+        success: true,
+        sendMail: false,
+        verifiedFailed: { $ne: true },
+    });
+
+    for (const donation of donationsToResend) {
+        try {
+            const reqLike = { query: { id: donation.merchantTransactionId } };
+            await paymentConfirmation(reqLike, {
+                redirect: (url) => console.log(`↪ Redirecting to ${url}`),
+            });
+            console.log(
+                `📧 Resent donation email for ${donation.merchantTransactionId}`
+            );
+            sendMobileLog(
+                `Resent donation email for ${donation.merchantTransactionId}`
+            );
+        } catch (err) {
+            console.error(
+                `❌ Error resending email for ${donation.merchantTransactionId}:`,
+                err
+            );
+            sendMobileLogWithError(
+                `Error resending email for ${donation.merchantTransactionId}: ${err.message}`
+            );
+        }
+    }
+
+    console.log("✅ Donation mail resend job completed.");
+    sendMobileLog("Donation mail resend job completed.");
+
+});
