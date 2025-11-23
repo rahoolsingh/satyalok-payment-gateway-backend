@@ -24,20 +24,21 @@ const formatAmount = (amount) => {
     return `${rupeesStr}.${paise}`;
 };
 
-const convertToTimestamp = (input) => {
-    // Extract the date-time portion from the input string
-    const dateTimePart = input.slice(1, 15); // Skip the 'T' and take 14 characters
+const convertToTimestamp = (isoString) => {
+    const date = new Date(isoString);
 
-    // Parse the date-time part into components
-    const year = parseInt("20" + dateTimePart.slice(0, 2), 10); // Assuming the year is 20YY
-    const month = dateTimePart.slice(2, 4);
-    const day = dateTimePart.slice(4, 6);
-    const hour = dateTimePart.slice(6, 8);
-    const minute = dateTimePart.slice(8, 10);
+    // Pad numbers with a leading zero if single digit (e.g., 9 -> 09)
+    const pad = (num) => num.toString().padStart(2, '0');
 
-    // Return the formatted string in the format "DD-MM-YYYY HH:MM"
-    return `${day}-${month}-${year} ${hour}:${minute}`;
-};
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1); // Months are 0-indexed
+    const year = date.getFullYear();
+
+    const hours = pad(date.getHours());
+    const minutes = pad(date.getMinutes());
+
+    return `${day}-${month}-${year} ${hours}:${minutes}`;
+}
 
 const generateCertificate = async ({
     merchantTransactionId,
@@ -45,6 +46,7 @@ const generateCertificate = async ({
     name,
     panNumber,
     pgResponse,
+    createdAt,
 }) => {
     if (success !== pgResponse.success) {
         console.error("Data mismatch in generating certificate");
@@ -52,7 +54,7 @@ const generateCertificate = async ({
     }
 
     const amount = pgResponse.data.amount;
-    const donationDate = convertToTimestamp(pgResponse.data.transactionId);
+    const donationDate = convertToTimestamp(createdAt);
     // Create a new PDF document
     const doc = new PDFDocument({
         layout: "landscape",
@@ -124,8 +126,7 @@ const generateCertificate = async ({
                 .text(
                     `We confirm that we received a donation of Rs. ${formatAmount(
                         amount
-                    )} from ${name} on ${donationDate} via PhonePe Payment Gateway with Transaction ID: ${
-                        pgResponse.data.transactionId
+                    )} from ${name} on ${donationDate} via PhonePe Payment Gateway with Transaction ID: ${pgResponse.data.transactionId
                     }.`,
                     60,
                     330,

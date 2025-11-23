@@ -310,7 +310,38 @@ const paymentConfirmation = async (req, res) => {
 };
 
 const checkStatus = async (req, res) => {
-    const status = await paymentStatus(req.query.id);
+
+    try {
+        const status = await paymentStatus(req.query.id);
+
+        // get createdAt from database
+        let createdAt = null;
+        if (req.query.id.startsWith("HOPE")) {
+            const record = await Donation.findOne({
+                merchantTransactionId: req.query.id,
+            });
+            if (record) {
+                createdAt = record.createdAt;
+            }
+        } else if (req.query.id.startsWith("QC25")) {
+            const record = await QuizChamp.findOne({
+                merchantTransactionId: req.query.id,
+            });
+            if (record) {
+                createdAt = record.createdAt;
+            }
+        }
+
+        // attach createdAt to status response
+        if (createdAt) {
+            status.createdAt = createdAt;
+        }
+    } catch (error) {
+        console.error("Error in /status:", error);
+        return res.status(500).json({
+            error: "An error occurred while checking the payment status.",
+        });
+    }
 
     return res.json(status);
 };
