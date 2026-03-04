@@ -617,6 +617,14 @@ const deleteAdminDonation = async (req, res) => {
         const { id } = req.params;
         const donation = await Donation.findById(id);
 
+        if (req.user.email !== process.env.SUPER_ADMIN_EMAIL) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    "You are not authorized to delete this donation. Contact Super Admin.",
+            });
+        }
+
         if (!donation) {
             return res
                 .status(404)
