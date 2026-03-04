@@ -374,7 +374,7 @@ const getDonations = async (req, res) => {
             maxAmount,
             paymentMethod,
         } = req.query;
-        let query = { isDeleted: false };
+        let query = { isDeleted: { $ne: true } };
 
         if (search) {
             const orConditions = [
@@ -625,21 +625,17 @@ const adminResetPassword = async (req, res) => {
     const { email, otp, newPassword } = req.body;
 
     if (!email || !otp || !newPassword) {
-        return res
-            .status(400)
-            .json({
-                success: false,
-                message: "Email, OTP, and new password are required.",
-            });
+        return res.status(400).json({
+            success: false,
+            message: "Email, OTP, and new password are required.",
+        });
     }
 
     if (newPassword.length < 6) {
-        return res
-            .status(400)
-            .json({
-                success: false,
-                message: "Password must be at least 6 characters long.",
-            });
+        return res.status(400).json({
+            success: false,
+            message: "Password must be at least 6 characters long.",
+        });
     }
 
     try {
