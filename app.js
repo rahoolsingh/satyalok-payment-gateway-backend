@@ -33,9 +33,9 @@ dotenv.config();
 app.use(
     cors({
         origin: process.env.CORS_URLS.split(","),
-        methods: "GET,POST",
+        methods: "GET,POST,DELETE,PATCH,PUT",
         credentials: true,
-    })
+    }),
 );
 
 console.log("CORS enabled for:", process.env.CORS_URLS.split(","));
