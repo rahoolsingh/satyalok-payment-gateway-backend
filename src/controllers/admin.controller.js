@@ -11,6 +11,7 @@ import {
 import generateAdmitCard, {
     deleteFiles,
 } from "../services/generateAdmitCard.service.js";
+import generate80GPDF from "../services/generate80gCertificate.service.js";
 import Verification from "../models/verification.model.js";
 import Donation from "../models/donation.model.js";
 
@@ -485,138 +486,23 @@ const generate80GCertificate = async (req, res) => {
                 .status(404)
                 .json({ success: false, message: "Donation not found." });
         }
-
         if (!donation.taxBenefit || !donation.panNumber) {
             return res.status(400).json({
                 success: false,
                 message:
-                    "This donation is not eligible for an 80G certificate.",
+                    "This donation is not eligible for an 80G certificate (no taxBenefit or PAN).",
             });
         }
 
-        const PDFDocument = (await import("pdfkit")).default;
-        const doc = new PDFDocument({ size: "A4", margin: 50 });
+        const pdfBuffer = await generate80GPDF(donation);
 
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
             "Content-Disposition",
-            `attachment; filename="80G_Certificate_${donation.merchantTransactionId}.pdf"`,
+            `attachment; filename="80G_${donation.merchantTransactionId}.pdf"`,
         );
-        doc.pipe(res);
-
-        const donationDateStr = new Date(
-            donation.donationDate || donation.createdAt,
-        ).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-        });
-
-        // Header
-        doc.fontSize(20)
-            .font("Helvetica-Bold")
-            .fillColor("#1a1a2e")
-            .text("Satyalok - A New Hope", { align: "center" });
-        doc.fontSize(11)
-            .font("Helvetica")
-            .fillColor("#555")
-            .text("Donation Receipt & 80G Tax Exemption Certificate", {
-                align: "center",
-            });
-        doc.moveDown(0.5);
-        doc.moveTo(50, doc.y)
-            .lineTo(545, doc.y)
-            .strokeColor("#ddd")
-            .lineWidth(1)
-            .stroke();
-        doc.moveDown(1);
-
-        // Certificate heading
-        doc.fontSize(15)
-            .font("Helvetica-Bold")
-            .fillColor("#1a1a2e")
-            .text("Certificate of Donation", { align: "center" });
-        doc.moveDown(0.5);
-        doc.fontSize(10)
-            .font("Helvetica")
-            .fillColor("#555")
-            .text("Under Section 80G of the Income Tax Act, 1961", {
-                align: "center",
-            });
-        doc.moveDown(1.5);
-
-        // Donor details table
-        const tableLeft = 50;
-        const valueLeft = 240;
-        const rowHeight = 24;
-        const rows = [
-            ["Donor Name", donation.name],
-            ["PAN Number", donation.panNumber],
-            [
-                "Donation Amount",
-                `INR ${donation.amount?.toLocaleString("en-IN")} (Rupees ${amountInWords(donation.amount)} Only)`,
-            ],
-            ["Donation Date", donationDateStr],
-            [
-                "Payment Mode",
-                (donation.paymentMethod || "PhonePe")
-                    .replace("_", " ")
-                    .toUpperCase(),
-            ],
-            [
-                "Transaction ID",
-                donation.externalTransactionId ||
-                    donation.merchantTransactionId,
-            ],
-        ];
-
-        rows.forEach(([label, value], i) => {
-            const y = doc.y;
-            doc.fontSize(10)
-                .font("Helvetica-Bold")
-                .fillColor("#333")
-                .text(label + ":", tableLeft, y, { width: 180 });
-            doc.fontSize(10)
-                .font("Helvetica")
-                .fillColor("#111")
-                .text(value, valueLeft, y, { width: 300 });
-            doc.moveDown(0.5);
-        });
-
-        doc.moveDown(1);
-        doc.moveTo(50, doc.y)
-            .lineTo(545, doc.y)
-            .strokeColor("#ddd")
-            .lineWidth(1)
-            .stroke();
-        doc.moveDown(1);
-
-        doc.fontSize(10)
-            .font("Helvetica")
-            .fillColor("#555")
-            .text(
-                "This receipt certifies that the above-mentioned donor has made a charitable contribution to Satyalok - A New Hope, a registered charitable organization. This donation is eligible for tax deduction under Section 80G of the Income Tax Act, 1961.",
-                { align: "justify" },
-            );
-
-        doc.moveDown(2);
-        doc.fontSize(10)
-            .font("Helvetica-Bold")
-            .fillColor("#333")
-            .text("Authorized Signatory", 50);
-        doc.fontSize(10)
-            .font("Helvetica")
-            .fillColor("#555")
-            .text("Satyalok - A New Hope", 50);
-        doc.moveDown(0.5);
-        doc.fontSize(9)
-            .fillColor("#aaa")
-            .text(
-                `Generated on: ${new Date().toLocaleDateString("en-IN")}`,
-                50,
-            );
-
-        doc.end();
+        res.setHeader("Content-Length", pdfBuffer.length);
+        res.end(pdfBuffer);
     } catch (error) {
         console.error("Error generating 80G certificate:", error);
         res.status(500).json({
@@ -625,77 +511,6 @@ const generate80GCertificate = async (req, res) => {
         });
     }
 };
-
-// Helper: basic number to words for certificate
-function amountInWords(amount) {
-    const ones = [
-        "",
-        "One",
-        "Two",
-        "Three",
-        "Four",
-        "Five",
-        "Six",
-        "Seven",
-        "Eight",
-        "Nine",
-        "Ten",
-        "Eleven",
-        "Twelve",
-        "Thirteen",
-        "Fourteen",
-        "Fifteen",
-        "Sixteen",
-        "Seventeen",
-        "Eighteen",
-        "Nineteen",
-    ];
-    const tens = [
-        "",
-        "",
-        "Twenty",
-        "Thirty",
-        "Forty",
-        "Fifty",
-        "Sixty",
-        "Seventy",
-        "Eighty",
-        "Ninety",
-    ];
-
-    if (!amount || amount === 0) return "Zero";
-    const convert = (n) => {
-        if (n < 20) return ones[n];
-        if (n < 100)
-            return (
-                tens[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "")
-            );
-        if (n < 1000)
-            return (
-                ones[Math.floor(n / 100)] +
-                " Hundred" +
-                (n % 100 ? " " + convert(n % 100) : "")
-            );
-        if (n < 100000)
-            return (
-                convert(Math.floor(n / 1000)) +
-                " Thousand" +
-                (n % 1000 ? " " + convert(n % 1000) : "")
-            );
-        if (n < 10000000)
-            return (
-                convert(Math.floor(n / 100000)) +
-                " Lakh" +
-                (n % 100000 ? " " + convert(n % 100000) : "")
-            );
-        return (
-            convert(Math.floor(n / 10000000)) +
-            " Crore" +
-            (n % 10000000 ? " " + convert(n % 10000000) : "")
-        );
-    };
-    return convert(Math.round(amount));
-}
 
 const createOfflineDonation = async (req, res) => {
     try {
@@ -725,12 +540,34 @@ const createOfflineDonation = async (req, res) => {
             });
         }
 
+        // Generate a unique receipt ID similar to PhonePe format but suffixed with -M
+        // Retry up to 5 times to guarantee uniqueness
+        let merchantTransactionId;
+        let attempts = 0;
+        while (attempts < 5) {
+            const ts = Date.now();
+            const rand = Math.floor(Math.random() * 9000) + 1000;
+            const candidate = `OMO${ts}${rand}-M`;
+            const existing = await Donation.findOne({
+                merchantTransactionId: candidate,
+            }).lean();
+            if (!existing) {
+                merchantTransactionId = candidate;
+                break;
+            }
+            attempts++;
+        }
+        if (!merchantTransactionId) {
+            // Absolute failsafe: use a UUID-style random string
+            merchantTransactionId = `OMO-M-${mongoose.Types.ObjectId()}`;
+        }
+
         const newDonation = new Donation({
             name,
             email,
             amount: Number(amount),
             mobile: Number(mobile),
-            merchantTransactionId: `OFFLINE_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            merchantTransactionId,
             externalTransactionId: externalTransactionId || null,
             donationDate: donationDate ? new Date(donationDate) : new Date(),
             success: true,
@@ -820,23 +657,58 @@ const resendDonationReceipt = async (req, res) => {
                 .json({ success: false, message: "Donation not found." });
         }
 
+        const donationDateDisplay = new Date(
+            donation.donationDate || donation.createdAt,
+        ).toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+        });
+
+        // Determine transaction ID for display (PG txn ID for PhonePe, external for manual, fallback to receipt ID)
+        const pgTxnId = donation.pgResponse?.data?.transactionId || null;
+        const displayTxnId = donation.externalTransactionId || pgTxnId || "N/A";
+
         const emailTemplate = donationReceiptEmailTemplate(
             donation.amount,
             donation.merchantTransactionId,
-            new Date(donation.createdAt).toLocaleString("en-US", {
-                timeZone: "Asia/Kolkata",
-            }),
-            donation.pgResponse?.data?.transactionId || "N/A",
+            donationDateDisplay,
+            displayTxnId,
             donation.name,
             donation.success,
             donation.taxBenefit,
         );
+
+        // Build optional 80G attachment
+        let attachments = undefined;
+        if (donation.taxBenefit && donation.panNumber) {
+            try {
+                const pdfBuffer = await generate80GPDF(donation);
+                attachments = [
+                    {
+                        filename: `80G_${donation.merchantTransactionId}.pdf`,
+                        content: pdfBuffer,
+                        contentType: "application/pdf",
+                    },
+                ];
+            } catch (pdfErr) {
+                console.error(
+                    "Failed to generate 80G PDF for attachment, sending receipt without it:",
+                    pdfErr,
+                );
+            }
+        }
 
         await sendMail(
             donation.email,
             "Donation Receipt - Satyalok",
             `Thank you for your generous donation of INR ${donation.amount}.`,
             emailTemplate,
+            attachments,
         );
 
         res.status(200).json({
