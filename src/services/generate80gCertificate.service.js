@@ -1,69 +1,71 @@
 /**
  * generate80gCertificate.service.js
  *
- * Wraps (and replicates) the logic of generateCertificate.service.js
- * but returns a Buffer instead of writing to disk.
+ * Mirrors the layout & style of generateCertificate.service.js (same certificate.png
+ * background, stamp.png, text positions) but returns a Buffer instead of writing to disk.
  *
- * Works for BOTH PhonePe-created donations and admin-created ones.
+ * Works for BOTH PhonePe-created and admin-created (offline) donations.
  * The original generateCertificate.service.js is left completely unchanged.
  */
 
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 
-// ─── Helpers (same as generateCertificate.service.js) ───────────────────────
+// ─── Helpers (mirrors generateCertificate.service.js) ───────────────────────
 
 const formatAmount = (amount) => {
-    // amount is in RUPEES for admin donations; detect paise by checking scale
-    // PhonePe sends paise (e.g., 10000 = ₹100), admin donations store rupees (e.g., 100 = ₹100).
-    // We normalise both to rupees here.
-    let rupees = amount;
-    let paise = 0;
-    let rupeesStr = rupees.toString();
-    let lastThreeDigits = rupeesStr.slice(-3);
-    let otherDigits = rupeesStr.slice(0, -3);
-    if (otherDigits !== "") {
-        otherDigits = otherDigits.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
-        rupeesStr = otherDigits + "," + lastThreeDigits;
-    } else {
-        rupeesStr = lastThreeDigits;
-    }
-    return `${rupeesStr}.${String(paise).padStart(2, "0")}`;
+    // Admin donations store amount in RUPEES; PhonePe stores in paise inside pgResponse.
+    // Here `amount` is always rupees.
+    const rupeesStr = amount.toString();
+    const lastThree = rupeesStr.slice(-3);
+    const rest = rupeesStr.slice(0, -3);
+    const formatted = rest
+        ? rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + lastThree
+        : lastThree;
+    return `${formatted}.00`;
 };
 
-const convertToTimestamp = (date) => {
-    const d = new Date(date);
+const formatDate = (donation) => {
+    const d = new Date(donation.donationDate || donation.createdAt);
     const pad = (n) => n.toString().padStart(2, "0");
-    return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const datePart = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+
+    // Only show time if explicitly provided (donationTime field on the donation)
+    if (donation.donationTime) {
+        return `${datePart} ${donation.donationTime}`;
+    }
+    // PhonePe donations always have time embedded in createdAt (not admin-set): show it
+    if (!donation.createdByAdmin) {
+        return `${datePart} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    // Admin manual entry with no time given → date only
+    return datePart;
 };
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
- * Returns a Promise<Buffer> of the generated 80G certificate.
- *
- * Accepts any donation document (PhonePe or admin-created).
- * Automatically normalises fields so the original certificate layout works.
+ * Returns a Promise<Buffer> of the 80G certificate PDF.
+ * Accepts any donation document (PhonePe or admin-created offline).
  */
 const generate80GPDF = (donation) => {
     return new Promise(async (resolve, reject) => {
         try {
-            // ── Normalise data ───────────────────────────────────────────────
-            // PhonePe stores amount in PAISE inside pgResponse.data.amount
-            // Admin donations store amount in RUPEES directly on donation.amount
+            // ── Normalise data ────────────────────────────────────────────────
+            // PhonePe: pgResponse.data.amount is in paise; admin stores rupees directly
             const isPhonePe = !!donation.pgResponse?.data?.amount;
             const amountRupees = isPhonePe
                 ? Math.floor(donation.pgResponse.data.amount / 100)
                 : donation.amount || 0;
 
-            // Transaction ID to show on certificate
-            const isPhonePeTxn = !!donation.pgResponse?.data?.transactionId;
-            const displayTxnId = isPhonePeTxn
-                ? donation.pgResponse.data.transactionId
-                : donation.externalTransactionId ||
-                  donation.merchantTransactionId;
+            // Best transaction ID to show (external > PhonePe PG txn > receipt ID)
+            const pgTxnId = donation.pgResponse?.data?.transactionId || null;
+            const displayTxnId =
+                donation.externalTransactionId ||
+                pgTxnId ||
+                donation.merchantTransactionId;
 
-            // Payment medium description (matches the user's requested format)
+            // Payment medium label for confirmation sentence
             const paymentMethod = donation.paymentMethod || "phonepe";
             const methodLabel =
                 {
@@ -75,67 +77,79 @@ const generate80GPDF = (donation) => {
                     other: "Other",
                 }[paymentMethod] ?? paymentMethod;
 
-            const donationDate = convertToTimestamp(
-                donation.donationDate || donation.createdAt,
-            );
-            const merchantTransactionId = donation.merchantTransactionId;
+            const donationDateStr = formatDate(donation);
+            const receiptId = donation.merchantTransactionId;
             const name = donation.name;
             const panNumber = donation.panNumber;
 
-            // Confirmation sentence (as per user spec)
-            const confirmationText = isPhonePeTxn
-                ? `We confirm that we received a donation of Rs. ${formatAmount(amountRupees)} from ${name} on ${donationDate} via ${methodLabel}. Transaction ID: ${displayTxnId}.`
-                : `We confirm that we received a donation of Rs. ${formatAmount(amountRupees)} from ${name} on ${donationDate} via ${methodLabel}.`;
+            // Confirmation sentence (user's exact requested format)
+            const hasDisplayTxn = !!(donation.externalTransactionId || pgTxnId);
+            const confirmationText = hasDisplayTxn
+                ? `We confirm that we received a donation of Rs. ${formatAmount(amountRupees)} from ${name} on ${donationDateStr} via ${methodLabel}. Transaction ID: ${displayTxnId}.`
+                : `We confirm that we received a donation of Rs. ${formatAmount(amountRupees)} from ${name} on ${donationDateStr} via ${methodLabel}.`;
 
-            // ── QR code data ─────────────────────────────────────────────────
-            const qrData = JSON.stringify({
-                receipt: merchantTransactionId,
-                pan: panNumber,
-                txnId: displayTxnId,
-            });
-
-            let qrDataUrl;
+            // ── QR code (in-memory) ───────────────────────────────────────────
+            let qrBuffer = null;
             try {
-                qrDataUrl = await QRCode.toDataURL(qrData, {
-                    color: { dark: "#000000", light: "#00000000" },
-                });
+                const qrDataUrl = await QRCode.toDataURL(
+                    JSON.stringify({
+                        receipt: receiptId,
+                        pan: panNumber,
+                        txnId: displayTxnId,
+                    }),
+                    { color: { dark: "#000000", light: "#00000000" } },
+                );
+                qrBuffer = Buffer.from(
+                    qrDataUrl.replace(/^data:image\/png;base64,/, ""),
+                    "base64",
+                );
             } catch (qrErr) {
                 console.warn(
                     "QR code generation failed, continuing without QR:",
                     qrErr.message,
                 );
-                qrDataUrl = null;
             }
 
-            // ── PDF generation ───────────────────────────────────────────────
+            // ── Build PDF (same layout as generateCertificate.service.js) ────
             const doc = new PDFDocument({
                 layout: "landscape",
                 size: "A4",
                 margin: 60,
             });
             const chunks = [];
-            doc.on("data", (chunk) => chunks.push(chunk));
+            doc.on("data", (c) => chunks.push(c));
             doc.on("end", () => resolve(Buffer.concat(chunks)));
             doc.on("error", reject);
 
-            // Background image (same as original service)
+            // Background image
             try {
                 doc.image("certificate.png", 0, 0, { width: 841.89 });
             } catch {
-                // certificate.png not found — graceful fallback with a plain background
-                doc.rect(0, 0, 841.89, 595.28).fill("#fffbf0");
+                doc.rect(0, 0, 841.89, 595.28).fill("#fffcf0");
             }
 
-            // Text fields (same positions as original generateCertificate.service.js)
+            // Text fields — exact same positions as the original service
             doc.fontSize(15)
                 .font("Times-Roman")
                 .fillColor("black")
-                .text(merchantTransactionId, 160, 228)
-                .text(donationDate, 670, 228)
-                .text(name, 180, 257)
-                .text(panNumber, 173, 287);
+                .text(receiptId, 160, 228) // Receipt / Reference ID
+                .text(donationDateStr, 670, 228) // Date (+ time if provided)
+                .text(name, 180, 257) // Donor name
+                .text(panNumber, 173, 287); // PAN number
 
-            // Donation amount in green bold (same style as original)
+            // Transaction ID line (for manual entries — shown below PAN)
+            if (donation.externalTransactionId) {
+                doc.fontSize(12)
+                    .font("Times-Roman")
+                    .fillColor("black")
+                    .text(
+                        `Txn ID: ${donation.externalTransactionId}`,
+                        173,
+                        307,
+                    );
+            }
+
+            // Amount — same green bold style as original
             doc.font("Times-Bold")
                 .fontSize(20)
                 .fillColor("green")
@@ -149,7 +163,7 @@ const generate80GPDF = (donation) => {
                 .fillColor("black")
                 .text("Thanks for your donation!", { align: "center" });
 
-            // Stamp image (same as original)
+            // Stamp image
             const randomX = Math.floor(Math.random() * 10) + 660;
             const randomY = Math.floor(Math.random() * 10) + 245;
             try {
@@ -158,22 +172,16 @@ const generate80GPDF = (donation) => {
                 // stamp.png not found — skip silently
             }
 
-            // QR code from dataURL
-            if (qrDataUrl) {
+            // QR code from Buffer
+            if (qrBuffer) {
                 try {
-                    // Convert dataURL to Buffer for pdfkit
-                    const base64Data = qrDataUrl.replace(
-                        /^data:image\/png;base64,/,
-                        "",
-                    );
-                    const qrBuffer = Buffer.from(base64Data, "base64");
                     doc.image(qrBuffer, 705, 70, { width: 80, align: "right" });
                 } catch (imgErr) {
-                    console.warn("QR image embed failed:", imgErr.message);
+                    console.warn("QR embed failed:", imgErr.message);
                 }
             }
 
-            // Confirmation paragraph (same position as original)
+            // Confirmation paragraph — same position as original service
             doc.fontSize(14)
                 .font("Helvetica")
                 .fillColor("black")
