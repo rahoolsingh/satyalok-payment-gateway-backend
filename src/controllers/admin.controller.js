@@ -379,10 +379,14 @@ const getDonations = async (req, res) => {
             minAmount,
             maxAmount,
             paymentMethod,
-            status, // "success" | "failed"
+            // 'status' removed from destructured query
         } = req.query;
 
-        let query = { isDeleted: { $ne: true } };
+        // Base query: not deleted, and STRICTLY successful transactions
+        let query = {
+            isDeleted: { $ne: true },
+            success: true,
+        };
 
         // Default date range: last 7 days if no dates provided
         const end = endDate ? new Date(endDate) : new Date();
@@ -392,28 +396,33 @@ const getDonations = async (req, res) => {
             : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
         start.setHours(0, 0, 0, 0);
 
-        // prefer donationDate for filtering, fallback to createdAt if donationDate is missing
-        query.$or = [
+        // Use $and to prevent date filters and search filters from overwriting each other's $or arrays
+        query.$and = [
             {
-                donationDate: { $gte: start, $lte: end },
-            },
-            {
-                donationDate: { $exists: false },
-                createdAt: { $gte: start, $lte: end },
+                $or: [
+                    { donationDate: { $gte: start, $lte: end } },
+                    {
+                        donationDate: { $exists: false },
+                        createdAt: { $gte: start, $lte: end },
+                    },
+                ],
             },
         ];
 
         if (search) {
-            const orConditions = [
+            const searchConditions = [
                 { name: { $regex: search, $options: "i" } },
                 { email: { $regex: search, $options: "i" } },
                 { merchantTransactionId: { $regex: search, $options: "i" } },
                 { externalTransactionId: { $regex: search, $options: "i" } },
             ];
+
             if (!isNaN(search)) {
-                orConditions.push({ mobile: Number(search) });
+                searchConditions.push({ mobile: Number(search) });
             }
-            query.$or = orConditions;
+
+            // Push search conditions into the $and array
+            query.$and.push({ $or: searchConditions });
         }
 
         if (minAmount || maxAmount) {
@@ -424,12 +433,6 @@ const getDonations = async (req, res) => {
 
         if (paymentMethod) {
             query.paymentMethod = paymentMethod;
-        }
-
-        if (status === "success") {
-            query.success = true;
-        } else if (status === "failed") {
-            query.success = false;
         }
 
         // Only send required fields — exclude raw pg response to keep payload light
@@ -453,15 +456,14 @@ const getDonations = async (req, res) => {
             createdAt: -1,
         });
 
-        // Compute summary stats
-        const successDonations = donations.filter((d) => d.success);
-        const totalAmount = successDonations.reduce(
+        // Compute summary stats (simplified since all are guaranteed successful)
+        const totalAmount = donations.reduce(
             (sum, d) => sum + (d.amount || 0),
             0,
         );
         const avgAmount =
-            successDonations.length > 0
-                ? Math.round(totalAmount / successDonations.length)
+            donations.length > 0
+                ? Math.round(totalAmount / donations.length)
                 : 0;
 
         res.status(200).json({
@@ -469,8 +471,8 @@ const getDonations = async (req, res) => {
             data: donations,
             stats: {
                 total: donations.length,
-                successCount: successDonations.length,
-                failedCount: donations.length - successDonations.length,
+                successCount: donations.length,
+                failedCount: 0, // Hardcoded to 0 since we only fetch successes
                 totalAmount,
                 avgAmount,
             },
