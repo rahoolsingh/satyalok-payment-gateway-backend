@@ -584,7 +584,11 @@ const createOfflineDonation = async (req, res) => {
         const emailTemplate = donationReceiptEmailTemplate(
             newDonation.amount,
             newDonation.merchantTransactionId,
-            new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+            new Date(
+                newDonation.donationDate || newDonation.createdAt,
+            ).toLocaleString("en-IN", {
+                timeZone: "Asia/Kolkata",
+            }),
             "N/A",
             newDonation.name,
             true,
