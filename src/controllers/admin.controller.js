@@ -391,7 +391,17 @@ const getDonations = async (req, res) => {
             ? new Date(startDate)
             : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
         start.setHours(0, 0, 0, 0);
-        query.createdAt = { $gte: start, $lte: end };
+
+        // prefer donationDate for filtering, fallback to createdAt if donationDate is missing
+        query.$or = [
+            {
+                donationDate: { $gte: start, $lte: end },
+            },
+            {
+                donationDate: { $exists: false },
+                createdAt: { $gte: start, $lte: end },
+            },
+        ];
 
         if (search) {
             const orConditions = [
