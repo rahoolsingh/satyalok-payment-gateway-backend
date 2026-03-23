@@ -86,6 +86,7 @@ const donationSchema = new mongoose.Schema(
         },
         donationDate: {
             type: Date,
+            default: Date.now,
         },
         donationTime: {
             type: String, // "HH:MM" format, optional — if absent time is not printed on cert
