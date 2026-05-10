@@ -40,7 +40,7 @@ const quizChampSchema = new mongoose.Schema(
         },
         group: {
             type: String,
-            enum: ["A", "B"],
+            enum: ["JUNIOR", "SENIOR", "A", "B"], // Support both old (A, B) and new (JUNIOR, SENIOR) formats
             required: true,
         },
         class: {
