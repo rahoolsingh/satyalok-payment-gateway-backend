@@ -312,15 +312,26 @@ const paymentConfirmation = async (req, res) => {
         const qcbCallbackUrl = process.env.QCB_CALLBACK_URL;
         if (qcbCallbackUrl) {
             try {
-                await axios.get(`${qcbCallbackUrl}?id=${req.query.id}`);
+                const response = await axios.get(`${qcbCallbackUrl}?id=${req.query.id}`, {
+                    maxRedirects: 0,
+                    validateStatus: (status) => status >= 200 && status < 400,
+                });
+                // QCB callback returns a redirect with participantId in the Location header
+                // Extract it if present, otherwise fall back to txnId
+                const location = response.headers.location || '';
+                const participantIdMatch = location.match(/participantId=([^&]+)/);
+                if (participantIdMatch) {
+                    return res.redirect(`${quizchampUrl}/payment-success?participantId=${participantIdMatch[1]}`);
+                }
             } catch (err) {
                 console.error(
                     `[QC26] QCB callback failed for ${req.query.id}:`,
                     err.message
                 );
-                // Don't block the redirect — QCB has its own cron/retry logic
+                // Don't block the redirect — fall through to txnId redirect
             }
         }
+        // Fallback: redirect with txnId (frontend will need to handle this)
         return res.redirect(
             `${quizchampUrl}/payment-success?txnId=${req.query.id}`
         );
