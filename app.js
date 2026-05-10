@@ -18,6 +18,11 @@ import {
 } from "./src/controllers/verification.controller.js";
 import adminRouter from "./src/routes/admin.route.js";
 import cookieParser from "cookie-parser";
+import verifyApiKey from "./src/middleware/verifyApiKey.middleware.js";
+import {
+    initiateQuizChampS2S,
+    checkQuizChampStatusS2S,
+} from "./src/controllers/quizChampS2S.controller.js";
 
 import "./src/cron/server.js";
 import verifyAdmin from "./src/middleware/verifyAdmin.middleware.js";
@@ -79,6 +84,10 @@ app.post("/get-roll-number", getRollNumberWithEmail);
 app.post("/get-participant-data", getParticipantData);
 
 app.post("/get-participant-data-bulk", getParticipantDataBulk);
+
+// ─── Quiz Champ 2026 server-to-server endpoints (API key auth) ───────────────
+app.post("/quizChampOrderS2S", verifyApiKey, initiateQuizChampS2S);
+app.get("/quizChampStatusS2S", verifyApiKey, checkQuizChampStatusS2S);
 
 connectDB().then(() => {
     app.listen(PORT, () => {

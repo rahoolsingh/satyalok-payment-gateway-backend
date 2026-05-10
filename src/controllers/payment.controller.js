@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import axios from "axios";
 import {
     createOrder,
     paymentStatus,
@@ -306,6 +307,25 @@ const paymentConfirmation = async (req, res) => {
         return res.redirect(`${quizchampUrl}/status/${req.query.id}`);
     }
 
+    // QC26: new quiz-champ 2026 flow — notify QCB callback, then redirect to quiz-champ frontend
+    if (req.query.id.startsWith("QC26")) {
+        const qcbCallbackUrl = process.env.QCB_CALLBACK_URL;
+        if (qcbCallbackUrl) {
+            try {
+                await axios.get(`${qcbCallbackUrl}?id=${req.query.id}`);
+            } catch (err) {
+                console.error(
+                    `[QC26] QCB callback failed for ${req.query.id}:`,
+                    err.message
+                );
+                // Don't block the redirect — QCB has its own cron/retry logic
+            }
+        }
+        return res.redirect(
+            `${quizchampUrl}/payment-success?txnId=${req.query.id}`
+        );
+    }
+
     return res.redirect(`${frontendURL}/status/${req.query.id}`);
 };
 
@@ -324,6 +344,13 @@ const checkStatus = async (req, res) => {
                 createdAt = record.createdAt;
             }
         } else if (req.query.id.startsWith("QC25")) {
+            const record = await QuizChamp.findOne({
+                merchantTransactionId: req.query.id,
+            });
+            if (record) {
+                createdAt = record.createdAt;
+            }
+        } else if (req.query.id.startsWith("QC26")) {
             const record = await QuizChamp.findOne({
                 merchantTransactionId: req.query.id,
             });
