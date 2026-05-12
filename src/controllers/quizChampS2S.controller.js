@@ -62,17 +62,6 @@ export const initiateQuizChampS2S = async (req, res) => {
         return res.json({ success: true, redirectUrl, merchantTransactionId });
     }
 
-    // Duplicate email check (only if email provided)
-    if (email) {
-        const existingEmail = await QuizChamp.findOne({ email, success: true });
-        if (existingEmail) {
-            return res.status(409).json({
-                success: false,
-                message: "Email already registered for Quiz Champ",
-            });
-        }
-    }
-
     try {
         await QuizChamp.create({
             photo: "pending",
