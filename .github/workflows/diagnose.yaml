@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Clean duplicates and create one correct webhook
+      - name: Disable duplicate webhooks, keep the full one
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{secrets.SSH_HOST}}
@@ -18,22 +18,10 @@ jobs:
             cd /root/Satyalok_PG_Backend
             KEY_ID=$(grep '^RAZORPAY_KEY_ID=' .env | cut -d= -f2-)
             KEY_SECRET=$(grep '^RAZORPAY_KEY_SECRET=' .env | cut -d= -f2-)
-            HOOK_SECRET=$(grep '^RAZORPAY_WEBHOOK_SECRET=' .env | cut -d= -f2-)
-            HOOK_URL="https://server.veerrajpoot.com/satyalok-pg-backend/webhook/razorpay"
-
-            echo "== delete existing hooks for this URL =="
-            IDS=$(curl -s -u "$KEY_ID:$KEY_SECRET" https://api.razorpay.com/v1/webhooks | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
-            for id in $IDS; do
-              DEL=$(curl -s -o /dev/null -w '%{http_code}' -u "$KEY_ID:$KEY_SECRET" -X DELETE "https://api.razorpay.com/v1/webhooks/$id")
-              echo "deleted $id -> $DEL"
+            for id in U0UEHUjN3nJnvV U0UEJqtq5jzoiZ; do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' -u "$KEY_ID:$KEY_SECRET" -H 'Content-Type: application/json' -X PATCH "https://api.razorpay.com/v1/webhooks/$id" -d '{"active":false}')
+              echo "disable $id -> $CODE"
             done
-
-            echo "== create one webhook =="
-            BODY=$(printf '{"url":"%s","secret":"%s","alert_email":"support@satyalok.in","active":true,"events":{"payment.captured":true,"order.paid":true,"payment.failed":true,"subscription.authenticated":true,"subscription.activated":true,"subscription.charged":true,"subscription.pending":true,"subscription.halted":true,"subscription.paused":true,"subscription.resumed":true,"subscription.cancelled":true,"subscription.completed":true}}' "$HOOK_URL" "$HOOK_SECRET")
-            curl -s -u "$KEY_ID:$KEY_SECRET" -H 'Content-Type: application/json' -X POST https://api.razorpay.com/v1/webhooks -d "$BODY" \
-              | sed "s/$HOOK_SECRET/[redacted]/g" \
-              | python3 -c "import json,sys; d=json.load(sys.stdin); print('created', d.get('id'), d.get('url'), 'active', d.get('active')); [print(' ', k, v) for k,v in (d.get('events') or {}).items() if v]"
-
-            echo "== final hook count =="
+            echo "== final hooks =="
             curl -s -u "$KEY_ID:$KEY_SECRET" https://api.razorpay.com/v1/webhooks \
-              | python3 -c "import json,sys; d=json.load(sys.stdin); print('count', d.get('count')); [print(' ', i.get('id'), i.get('url')) for i in d.get('items',[])]"
+              | python3 -c "import json,sys; d=json.load(sys.stdin); print('count', d.get('count')); [print(' ', i.get('id'), 'active=', i.get('active'), 'events=', sum(1 for v in (i.get('events') or {}).values() if v)) for i in d.get('items',[])]"
