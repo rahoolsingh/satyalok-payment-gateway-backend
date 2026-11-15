@@ -66,7 +66,7 @@ jobs:
               if printf '%s' "$HOOKS" | grep -q "$HOOK_URL"; then
                 echo "Razorpay webhook: already registered"
               else
-                BODY=$(printf '{"url":"%s","secret":"%s","events":["payment.captured","order.paid","payment.failed","subscription.authenticated","subscription.activated","subscription.charged","subscription.pending","subscription.halted","subscription.paused","subscription.resumed","subscription.cancelled","subscription.completed"],"active":true}' "$HOOK_URL" "$HOOK_SECRET")
+                BODY=$(printf '{"url":"%s","secret":"%s","alert_email":"support@satyalok.in","active":true,"events":{"payment.captured":true,"order.paid":true,"payment.failed":true,"subscription.authenticated":true,"subscription.activated":true,"subscription.charged":true,"subscription.pending":true,"subscription.halted":true,"subscription.paused":true,"subscription.resumed":true,"subscription.cancelled":true,"subscription.completed":true}}' "$HOOK_URL" "$HOOK_SECRET")
                 HOOK_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -u "$KEY_ID:$KEY_SECRET" -H 'Content-Type: application/json' -X POST https://api.razorpay.com/v1/webhooks -d "$BODY")
                 echo "Razorpay webhook: registration HTTP $HOOK_STATUS"
                 if [ "$HOOK_STATUS" != "200" ] && [ "$HOOK_STATUS" != "201" ]; then
