@@ -96,6 +96,7 @@ SLD-<pledgeSuffix>-c0003-a02      cycle 3, attempt 2
 ```
 
 A timeout → we resend the *same* id, and both our unique index and the gateway
+de-duplicate. A genuine new attempt increments `a`, so it cannot collide.
 
 ---
 
@@ -163,8 +164,8 @@ sub-document (version + timestamp + IP + user agent + exact wording shown).
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/pledge/plans` | public | tiers + limits + consent version |
-| POST | `/pledge` | public + `Idempotency-Key` | create mandate |
+| GET | `/pledge/plans` | public | capability (`available`, `comingSoon`), published tiers, limits, consent version |
+| POST | `/pledge` | public + `Idempotency-Key` | create mandate (503 `RECURRING_COMING_SOON` while gated off) |
 | GET | `/pledge/:pledgeRef/status` | public, rate-limited | polls + reconciles with gateway |
 | GET | `/pledge/manage/:token` | signed token | portal data |
 | POST | `/pledge/manage/:token/{pause,resume,skip,cancel}` | signed token | donor self-service |
@@ -175,6 +176,21 @@ sub-document (version + timestamp + IP + user agent + exact wording shown).
 | POST | `/admin/pledges/:id/cancel` | admin cookie | audited cancellation |
 | POST | `/admin/pledges/:id/retry` | admin cookie | one more attempt (notice first) |
 | POST | `/admin/pledges/sync-setup` | admin cookie | settle a mandate whose webhook was lost |
+
+**Admin console.** `/admin/dashboard/pledges` lists pledges with status counts,
+monthly committed rupees, search and filters. Opening a pledge shows the donor,
+mandate, consent record and debit ledger, with three audited actions: **sync
+with gateway**, **retry debit** (only when the latest attempt failed or is
+unknown) and **cancel pledge** (reason recorded). There is no delete action.
+
+**Coming-soon mode.** The programme is only live when
+`PHONEPE_AUTOPAY_ENABLED=true` *and* OAuth credentials exist. Otherwise
+`GET /pledge/plans` returns `available: false`, `comingSoon: true`,
+`plans: []` and `previewPlans` (the static tiers), the Pledge page shows the
+"coming soon" screen instead of a form, the donate page shows a monthly-giving
+note, and `POST /pledge` returns 503 `RECURRING_COMING_SOON`. The one-time
+donation flow is untouched. This lets the UI ship before the merchant approval
+lands.
 
 ---
 
@@ -224,8 +240,9 @@ SCHEDULED --notify--> NOTIFYING --ok--> NOTIFIED --24h--> REDEEMING --ok---> SUC
    dashboard username/password into `PHONEPE_AUTOPAY_WEBHOOK_*`.
 4. `openssl rand -base64 48` → `PLEDGE_ENCRYPTION_KEY`, `PLEDGE_HASH_PEPPER`,
    `PLEDGE_PORTAL_SECRET` (three different values).
-5. Publish `/terms` and `/privacy` covering auto-debit, 24h notice, cancellation
-   and grievance redressal; bump `PLEDGE_CONSENT_VERSION`.
+5. The `/terms` and `/privacy` pages ship in the frontend; have them reviewed by
+   whoever owns programme compliance, and bump `PLEDGE_CONSENT_VERSION` if the
+   consent wording changes.
 6. Sandbox tests: happy path, declined debit, revoke from the app, cancel while a
    debit is in flight, webhook replay.
 7. First production pledge at ₹100: verify notify at T-24h → debit → receipt →
@@ -255,10 +272,8 @@ SCHEDULED --notify--> NOTIFYING --ok--> NOTIFIED --24h--> REDEEMING --ok---> SUC
 npm test                   # 20 unit tests: money, schedule, deterministic ids,
                            # crypto, magic links, plan limits, autopay payloads,
                            # webhook signature and event ids
-npm run test:integration   # 10 scenarios against a real in-memory MongoDB:
+npm run test:integration   # 11 scenarios against a real in-memory MongoDB:
                            # activation, idempotent replay, settlement races,
                            # failure/retry, PAST_DUE, ambiguous timeout, skip,
-                           # cancel-with-gateway-down, unique indexes
+                           # cancel-with-gateway-down, unique indexes, admin listing
 ```
-
-de-duplicate. A genuine new attempt increments `a`, so it cannot collide.

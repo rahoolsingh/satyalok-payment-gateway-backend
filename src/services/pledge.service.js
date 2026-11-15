@@ -655,7 +655,7 @@ const listPledges = async ({ status, search, page = 1, limit = 25 } = {}) => {
     const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
     const safePage = Math.max(Number(page) || 1, 1);
 
-    const [items, total] = await Promise.all([
+    const [items, total, grouped] = await Promise.all([
         Pledge.find(query)
             .select("-donor.panEncrypted -donor.donorKey")
             .sort({ createdAt: -1 })
@@ -663,13 +663,43 @@ const listPledges = async ({ status, search, page = 1, limit = 25 } = {}) => {
             .limit(safeLimit)
             .lean(),
         Pledge.countDocuments(query),
+        Pledge.aggregate([
+            {
+                $group: {
+                    _id: "$status",
+                    count: { $sum: 1 },
+                    // Committed monthly rupees only counts live mandates.
+                    amount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$status", PLEDGE_STATUS.ACTIVE] },
+                                "$amount",
+                                0,
+                            ],
+                        },
+                    },
+                },
+            },
+        ]),
     ]);
+
+    const statuses = Object.fromEntries(
+        grouped.map((row) => [row._id, row.count]),
+    );
+    const monthlyCommitted = grouped.reduce(
+        (sum, row) => sum + (row.amount || 0),
+        0,
+    );
 
     return {
         items,
         total,
         page: safePage,
         pages: Math.ceil(total / safeLimit) || 1,
+        stats: {
+            statuses,
+            monthlyCommitted,
+        },
     };
 };
 

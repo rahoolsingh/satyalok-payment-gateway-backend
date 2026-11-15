@@ -346,7 +346,7 @@ const adminRetryDebit = asyncHandler(async (req, res) => {
     });
 });
 
-/** POST /admin/pledges/verify-setup — manually settle a mandate the webhook missed. */
+/** POST /admin/pledges/sync-setup — manually settle a mandate the webhook missed. */
 const adminSyncSetup = asyncHandler(async (req, res) => {
     const pledge = await Pledge.findOne({ pledgeRef: req.body?.pledgeRef });
 

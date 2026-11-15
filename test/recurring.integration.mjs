@@ -42,6 +42,7 @@ let settleDebitFailure;
 let skipOpenCycle;
 let cancelPledge;
 let issueReceiptForDebit;
+let listPledges;
 let reference;
 let scheduleUtil;
 
@@ -105,7 +106,7 @@ const setup = async () => {
     ({ DEBIT_STATUS } = await import("../src/models/pledgeDebit.model.js"));
     Donation = (await import("../src/models/donation.model.js")).default;
 
-    ({ completeSetup, cancelPledge } = await import("../src/services/pledge.service.js"));
+    ({ completeSetup, cancelPledge, listPledges } = await import("../src/services/pledge.service.js"));
     ({ settleDebitSuccess, settleDebitFailure, skipOpenCycle } = await import(
         "../src/services/pledgeDebit.service.js"
     ));
@@ -434,6 +435,62 @@ scenario("the same idempotency key cannot create two pledges", async () => {
         () => makePledge({ idempotencyKey: key }).save(),
         (error) => error.code === 11000,
     );
+});
+
+
+scenario("pledge listing returns filtered rows plus programme stats", async () => {
+    await makePledge({
+        status: PLEDGE_STATUS.ACTIVE,
+        amount: 500,
+        donor: {
+            name: "Asha Verma",
+            email: "asha@example.com",
+            phone: "9876543210",
+            taxBenefit: false,
+            donorKey: "key-asha",
+            maskedVpa: "as****@okhdfcbank",
+        },
+    }).save();
+
+    await makePledge({
+        status: PLEDGE_STATUS.ACTIVE,
+        amount: 1000,
+        donor: {
+            name: "Ravi Kumar",
+            email: "ravi@example.com",
+            phone: "9876543211",
+            taxBenefit: false,
+            donorKey: "key-ravi",
+            maskedVpa: "ra****@okhdfcbank",
+        },
+    }).save();
+
+    await makePledge({
+        status: PLEDGE_STATUS.CANCELLED,
+        amount: 2500,
+        donor: {
+            name: "Meera Nair",
+            email: "meera@example.com",
+            phone: "9876543212",
+            taxBenefit: false,
+            donorKey: "key-meera",
+            maskedVpa: "me****@okhdfcbank",
+        },
+    }).save();
+
+    const all = await listPledges({ page: 1, limit: 10 });
+    assert.equal(all.total, 3);
+    assert.equal(all.stats.statuses.ACTIVE, 2);
+    assert.equal(all.stats.statuses.CANCELLED, 1);
+    // Cancelled mandates must not inflate the committed monthly amount.
+    assert.equal(all.stats.monthlyCommitted, 1500);
+
+    const searched = await listPledges({ search: "ravi@example.com" });
+    assert.equal(searched.total, 1);
+    assert.equal(searched.items[0].donor.name, "Ravi Kumar");
+
+    const filtered = await listPledges({ status: PLEDGE_STATUS.ACTIVE });
+    assert.equal(filtered.total, 2);
 });
 
 
