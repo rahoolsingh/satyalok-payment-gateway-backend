@@ -26,12 +26,17 @@
         "mongoose": "^8.6.1",
         "multer": "^2.0.2",
         "node-cron": "^4.0.7",
-        "nodemailer": "^8.0.5",
-        "nodemon": "^3.1.4",
+        "nodemailer": "^10.5.0",
+        "nodemon": "^3.1.14",
         "pdfkit": "^0.15.0",
-        "qrcode": "^1.5.4"
+        "qrcode": "^1.5.4",
+        "razorpay": "^2.9.8"
     },
     "devDependencies": {
         "mongodb-memory-server": "^11.3.0"
+    },
+    "overrides": {
+        "qs": "^6.17.1",
+        "minimatch": "^11.0.8"
     }
 }
