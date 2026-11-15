@@ -21,6 +21,15 @@ jobs:
           key: ${{secrets.SSH_KEY}}
           script: |
             cd /root/Satyalok_PG_Backend
+            # Presence only — never print values. Answers "why is recurring off?"
+            echo "Recurring env presence:"
+            for k in PHONEPE_AUTOPAY_ENABLED PHONEPE_AUTOPAY_CLIENT_ID PHONEPE_AUTOPAY_CLIENT_SECRET PHONEPE_AUTOPAY_WEBHOOK_USERNAME PHONEPE_AUTOPAY_WEBHOOK_PASSWORD PLEDGE_ENCRYPTION_KEY PLEDGE_HASH_PEPPER PLEDGE_PORTAL_SECRET PLEDGE_CRON_ENABLED SALT_KEY MERCHANT_ID; do
+              if grep -Eq "^[[:space:]]*(export[[:space:]]+)?$k=..*" .env 2>/dev/null; then
+                echo "  $k: present"
+              else
+                echo "  $k: absent"
+              fi
+            done
             # Server-local edits (hotfixes, config tweaks) must never block a
             # deploy. Save them to a patch + stash before pulling; the patch
             # stays on the server for recovery.
