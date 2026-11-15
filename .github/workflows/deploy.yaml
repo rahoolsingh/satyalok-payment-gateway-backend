@@ -20,7 +20,7 @@ jobs:
           username: ${{secrets.SSH_USERNAME}}
           key: ${{secrets.SSH_KEY}}
           # Image export occasionally takes >10 minutes on a slow registry day.
-          command_timeout: 20m
+          command_timeout: 45m
           script: |
             cd /root/Satyalok_PG_Backend
             # Presence only — never print values. Answers "why is recurring off?"
