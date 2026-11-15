@@ -80,7 +80,7 @@ const issueReceiptForDebit = async ({ pledge, debit, payment, logger = console }
             // We send the receipt ourselves, so the legacy resend cron must skip
             // this row (it only re-processes rows with sendMail === false).
             sendMail: true,
-            paymentMethod: "phonepe_autopay",
+            paymentMethod: pledge.provider || "phonepe_autopay",
             donationDate: debit.redeemedAt || new Date(),
             source: "recurring",
             pledgeRef: pledge.pledgeRef,

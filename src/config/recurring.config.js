@@ -174,6 +174,23 @@ export const AUTOPAY_CONFIG = {
 /** True when every credential the Autopay adapter needs is present. */
 export const isAutopayConfigured = () => Boolean(AUTOPAY_CONFIG.clientId && AUTOPAY_CONFIG.clientSecret);
 
+/*
+ * Razorpay is the preferred auto-debit rail going forward; PhonePe Autopay
+ * remains as a fallback for deployments that only have PhonePe credentials.
+ * The provider choice is explicit here so controllers, cron workers and the
+ * admin UI all agree on who owns a given pledge.
+ */
+import {
+    isRazorpayRecurringEnabled,
+    razorpayRecurringUnavailableReason,
+} from "./razorpay.config.js";
+
+export const activeRecurringProvider = () => {
+    if (isRazorpayRecurringEnabled()) return "razorpay";
+    if (AUTOPAY_CONFIG.enabled && isAutopayConfigured()) return "phonepe_autopay";
+    return null;
+};
+
 /**
  * Is the recurring programme actually switched on?
  *
@@ -181,17 +198,24 @@ export const isAutopayConfigured = () => Boolean(AUTOPAY_CONFIG.clientId && AUTO
  * means "coming soon": the pledge screens stay visible but inert, and the
  * one-time donation flow is completely unaffected.
  */
-export const isRecurringEnabled = () =>
-    AUTOPAY_CONFIG.enabled && isAutopayConfigured();
+export const isRecurringEnabled = () => Boolean(activeRecurringProvider());
 
 /**
  * Why recurring is off, in words an operator can act on. Never exposes a secret.
  */
 export const recurringUnavailableReason = () => {
-    if (AUTOPAY_CONFIG.enabled && isAutopayConfigured()) return null;
-    if (!AUTOPAY_CONFIG.enabled) return "PHONEPE_AUTOPAY_ENABLED is not true";
-    if (!AUTOPAY_CONFIG.clientId) return "PHONEPE_AUTOPAY_CLIENT_ID is missing";
-    return "PHONEPE_AUTOPAY_CLIENT_SECRET is missing";
+    if (isRecurringEnabled()) return null;
+
+    const razorpayReason = razorpayRecurringUnavailableReason();
+    if (!razorpayReason) return null;
+
+    if (!AUTOPAY_CONFIG.enabled) {
+        return `Razorpay: ${razorpayReason}; PhonePe: PHONEPE_AUTOPAY_ENABLED is not true`;
+    }
+    if (!AUTOPAY_CONFIG.clientId) {
+        return `Razorpay: ${razorpayReason}; PhonePe: PHONEPE_AUTOPAY_CLIENT_ID is missing`;
+    }
+    return `Razorpay: ${razorpayReason}; PhonePe: PHONEPE_AUTOPAY_CLIENT_SECRET is missing`;
 };
 
 /**
@@ -199,11 +223,20 @@ export const recurringUnavailableReason = () => {
  * Deliberately safe to call with no configuration at all.
  */
 export const recurringCapability = () => {
-    const enabled = isRecurringEnabled();
+    const provider = activeRecurringProvider();
+    const enabled = Boolean(provider);
 
     return {
         available: enabled,
         comingSoon: !enabled,
+        provider,
+        providers: {
+            razorpay: isRazorpayRecurringEnabled(),
+            phonepeAutopay: AUTOPAY_CONFIG.enabled && isAutopayConfigured(),
+        },
+        // Razorpay Checkout collects the instrument itself; asking for a UPI ID
+        // up front would be wrong and would confuse donors.
+        requiresVpa: provider !== "razorpay",
         // Plans are static config with no secrets, so the UI can still show what
         // is coming instead of an empty state.
         plans: enabled ? RECURRING_PLANS : [],

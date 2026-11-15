@@ -346,6 +346,27 @@ const checkStatus = async (req, res) => {
         // Recurring pledge debits are settled from our own ledger; they were
         // never created through the one-time PhonePe v1 API, so asking v1 for
         // their status would always fail.
+        // Razorpay one-time donations are settled from our ledger; the legacy
+        // PhonePe v1 status API knows nothing about them.
+        if (String(req.query.id || "").startsWith("RZP")) {
+            const record = await Donation.findOne({
+                merchantTransactionId: req.query.id,
+            });
+
+            if (!record) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Transaction not found.",
+                });
+            }
+
+            return res.json({
+                ...(record.pgResponse || {}),
+                success: record.success,
+                createdAt: record.createdAt,
+            });
+        }
+
         if (String(req.query.id || "").startsWith("HOPER")) {
             const record = await Donation.findOne({
                 merchantTransactionId: req.query.id,

@@ -435,7 +435,11 @@ const notifyDebit = async ({ pledge, debit, logger = console }) => {
  * debit for the same cycle.
  */
 const planAndNotify = async ({ now = new Date(), limit = 200, logger = console } = {}) => {
+    // Razorpay charges its mandates itself; only PhonePe Autopay needs our
+    // notify/redeem engine. Without this filter we would try to drive a
+    // Razorpay subscription through PhonePe and fail every cycle.
     const duePledges = await Pledge.find({
+        provider: "phonepe_autopay",
         status: { $in: [PLEDGE_STATUS.ACTIVE, PLEDGE_STATUS.PAST_DUE] },
         nextDebitAt: { $lte: addHours(now, RECURRING_RULES.notifyLeadHours) },
     })

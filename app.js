@@ -34,6 +34,7 @@ import {
 } from "./src/controllers/result.controller.js";
 import pledgeRouter from "./src/routes/pledge.route.js";
 import webhookRouter from "./src/routes/webhook.route.js";
+import paymentRouter from "./src/routes/payment.route.js";
 import { errorHandler } from "./src/utils/appError.util.js";
 import {
     isRecurringEnabled,
@@ -62,7 +63,15 @@ console.log(
             : `coming soon (${recurringUnavailableReason()})`
     }`,
 );
-app.use(express.json());
+// Keep the raw JSON bytes for webhook HMAC verification (Razorpay signs the
+// exact payload, so a re-serialised body would never match).
+app.use(
+    express.json({
+        verify: (req, res, buf) => {
+            req.rawBody = buf;
+        },
+    }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 8000;
@@ -84,6 +93,7 @@ app.use("/admin", adminRouter);
 
 // ─── Recurring donations (monthly pledges / UPI Autopay) ─────────────────────
 app.use("/pledge", pledgeRouter);
+app.use("/payment", paymentRouter);
 app.use("/webhook", webhookRouter);
 
 app.post("/order", initiatePayment);

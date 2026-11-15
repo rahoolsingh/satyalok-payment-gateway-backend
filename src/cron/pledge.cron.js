@@ -58,7 +58,7 @@ const expireStaleMandates = async ({ hours = 48 } = {}) => {
 
 if (ENABLED) {
     if (!isRecurringEnabled()) {
-        log("Autopay credentials missing — recurring workers stay idle.");
+        log("Recurring is not configured — recurring workers stay idle.");
     } else {
         // Pre-debit notifications: every hour at :05.
         cron.schedule("5 * * * *", guarded("planAndNotify", () => planAndNotify()), TZ);

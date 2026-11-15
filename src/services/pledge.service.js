@@ -6,8 +6,9 @@ import {
     RECURRING_RULES,
     AUTOPAY_CONFIG,
     resolvePlan,
-    isRecurringEnabled,
+    activeRecurringProvider,
 } from "../config/recurring.config.js";
+import { RAZORPAY_CONFIG } from "../config/razorpay.config.js";
 import {
     AppError,
     ConflictError,
@@ -27,6 +28,14 @@ import {
     cancelSubscription,
     getSubscriptionStatus,
 } from "./PhonePe/autopay.service.js";
+import {
+    getOrCreatePlan,
+    createSubscription as createRazorpaySubscription,
+    fetchSubscription as fetchRazorpaySubscription,
+    cancelSubscription as cancelRazorpaySubscription,
+    pauseSubscription as pauseRazorpaySubscription,
+    resumeSubscription as resumeRazorpaySubscription,
+} from "./Razorpay/razorpay.service.js";
 import {
     classifyOrderStatus,
     settleDebitSuccess,
@@ -55,7 +64,7 @@ const normalisePhone = (phone) => {
 const normaliseEmail = (email) => String(email || "").trim().toLowerCase();
 
 /** Validate everything the donor typed. Returns normalised values. */
-const validatePledgeInput = (input) => {
+const validatePledgeInput = (input, { requireVpa = true } = {}) => {
     const name = String(input.name || "").trim();
     const email = normaliseEmail(input.email);
     const phone = normalisePhone(input.phone);
@@ -89,7 +98,8 @@ const validatePledgeInput = (input) => {
     const channel = input.channel === "mobile" ? "mobile" : "web";
 
     // UPI intent hands off to an app, so we don't need (or want) the VPA.
-    if (channel === "web" && AUTOPAY_CONFIG.setupMode !== "UPI_INTENT") {
+    // Razorpay Checkout collects the instrument itself.
+    if (requireVpa && channel === "web" && AUTOPAY_CONFIG.setupMode !== "UPI_INTENT") {
         if (!VPA_RE.test(vpa)) {
             throw new ValidationError(
                 "Please enter the UPI ID (like yourname@bank) that should be debited each month.",
@@ -116,7 +126,9 @@ const buildConsentRecord = ({ context, version }) => ({
  * @returns {Promise<{pledge: object, authorization: object}>}
  */
 const createPledge = async ({ input, context = {}, logger = console }) => {
-    if (!isRecurringEnabled()) {
+    const provider = activeRecurringProvider();
+
+    if (!provider) {
         throw new AppError(
             "Monthly giving is not open yet. You can still make a one-time donation.",
             503,
@@ -137,7 +149,9 @@ const createPledge = async ({ input, context = {}, logger = console }) => {
         }
     }
 
-    const donorInput = validatePledgeInput(input);
+    const donorInput = validatePledgeInput(input, {
+        requireVpa: provider !== "razorpay",
+    });
     const plan = resolvePlan({
         planId: input.planId,
         amount: input.amount,
@@ -189,7 +203,7 @@ const createPledge = async ({ input, context = {}, logger = console }) => {
         currency: RECURRING_RULES.currency,
         frequency: plan.frequency,
         planId: plan.planId,
-        provider: "phonepe_autopay",
+        provider,
         merchantSubscriptionId,
         amountType: "FIXED",
         maxAmountPaise: amountPaise,
@@ -249,6 +263,34 @@ const createPledge = async ({ input, context = {}, logger = console }) => {
 
     // Ask the gateway to create the mandate.
     try {
+        if (provider === "razorpay") {
+            const razorpayPlan = await getOrCreatePlan({
+                amountRupees: pledge.amount,
+            });
+
+            const subscription = await createRazorpaySubscription({
+                planId: razorpayPlan.planId,
+                totalCount: RECURRING_RULES.mandateValidityYears * 12,
+                notes: {
+                    pledgeRef: pledge.pledgeRef,
+                    merchantSubscriptionId,
+                    planId: plan.planId,
+                    donorName: donorInput.name,
+                    donorEmail: donorInput.email,
+                },
+            });
+
+            pledge.providerSubscriptionId = subscription.id;
+            pledge.providerMandateId = null;
+            await pledge.save();
+
+            return {
+                pledge,
+                authorization: buildRazorpayAuthorization(pledge, subscription),
+                replayed: false,
+            };
+        }
+
         const response = await setupSubscription({
             merchantOrderId: setupOrderId(merchantSubscriptionId),
             merchantSubscriptionId,
@@ -296,6 +338,31 @@ const createPledge = async ({ input, context = {}, logger = console }) => {
         );
     }
 };
+
+/** Checkout parameters for a Razorpay auto-debit mandate. */
+const buildRazorpayAuthorization = (pledge, subscription) => ({
+    pledgeRef: pledge.pledgeRef,
+    merchantSubscriptionId: pledge.merchantSubscriptionId,
+    status: pledge.status,
+    amount: pledge.amount,
+    frequency: pledge.frequency,
+    mode: "RAZORPAY_CHECKOUT",
+    nextAction: "OPEN_RAZORPAY_CHECKOUT",
+    orderId: subscription?.id || null,
+    razorpay: {
+        keyId: RAZORPAY_CONFIG.keyId,
+        subscriptionId: subscription?.id || null,
+        name: RAZORPAY_CONFIG.companyName,
+        description: "Monthly donation to Satyalok - A New Hope",
+        prefill: {
+            name: pledge.donor.name,
+            email: pledge.donor.email,
+            contact: pledge.donor.phone,
+        },
+        notes: { pledgeRef: pledge.pledgeRef },
+        theme: { color: RAZORPAY_CONFIG.themeColor },
+    },
+});
 
 /** Shape the response the frontend uses to hand off to the UPI app / gateway. */
 const buildAuthorization = (pledge, response) => {
@@ -425,6 +492,10 @@ const refreshPledgeStatus = async ({ pledge }) => {
         return { pledge, changed: false };
     }
 
+    if (pledge.provider === "razorpay") {
+        return refreshRazorpayPledgeStatus(pledge);
+    }
+
     const status = await getSubscriptionStatus(pledge.merchantSubscriptionId);
     const state = String(status?.state || "").toUpperCase();
 
@@ -466,6 +537,76 @@ const refreshPledgeStatus = async ({ pledge }) => {
     return { pledge: updated, changed: true, state };
 };
 
+const RAZORPAY_STATE_MAP = {
+    created: PLEDGE_STATUS.PENDING_AUTH,
+    authenticated: PLEDGE_STATUS.ACTIVE,
+    active: PLEDGE_STATUS.ACTIVE,
+    paused: PLEDGE_STATUS.PAUSED,
+    halted: PLEDGE_STATUS.PAST_DUE,
+    cancelled: PLEDGE_STATUS.CANCELLED,
+    completed: PLEDGE_STATUS.COMPLETED,
+    expired: PLEDGE_STATUS.COMPLETED,
+};
+
+/** Reconcile a Razorpay subscription with our pledge record. */
+const refreshRazorpayPledgeStatus = async (pledge) => {
+    const subscription = await fetchRazorpaySubscription(
+        pledge.providerSubscriptionId,
+    );
+
+    const state = String(subscription?.status || "").toLowerCase();
+    const nextStatus = RAZORPAY_STATE_MAP[state];
+
+    if (!nextStatus) {
+        return { pledge, changed: false, state };
+    }
+
+    // Never resurrect a locally closed pledge from a stale gateway state.
+    if (
+        pledge.status === PLEDGE_STATUS.CANCELLED ||
+        pledge.status === PLEDGE_STATUS.COMPLETED
+    ) {
+        return { pledge, changed: false, state };
+    }
+
+    const patch = { status: nextStatus };
+
+    if (subscription?.current_start && !pledge.startedAt) {
+        patch.startedAt = new Date(subscription.current_start * 1000);
+    }
+
+    if (subscription?.current_end) {
+        patch.nextDebitAt = new Date(subscription.current_end * 1000);
+    }
+
+    if (nextStatus === PLEDGE_STATUS.CANCELLED) {
+        patch.cancelledAt = pledge.cancelledAt || new Date();
+        patch.cancelledBy = pledge.cancelledBy || "issuer";
+    }
+
+    if (nextStatus === PLEDGE_STATUS.COMPLETED) {
+        patch.completedAt = pledge.completedAt || new Date();
+    }
+
+    const unchanged = Object.entries(patch).every(
+        ([key, value]) =>
+            value == null ||
+            String(pledge[key] || "") === String(value || ""),
+    );
+
+    if (unchanged) {
+        return { pledge, changed: false, state };
+    }
+
+    const updated = await Pledge.findByIdAndUpdate(
+        pledge._id,
+        { $set: patch },
+        { new: true },
+    );
+
+    return { pledge: updated || pledge, changed: true, state };
+};
+
 /**
  * Cancel a pledge.
  *
@@ -475,6 +616,19 @@ const refreshPledgeStatus = async ({ pledge }) => {
  * (CUSTOM retry strategy), a lingering mandate cannot charge the donor on its own.
  */
 const cancelPledge = async ({ pledge, by = "donor", reason = null, logger = console }) => {
+    // Razorpay charges the mandate itself, so the gateway call MUST succeed
+    // before we mark anything cancelled locally.
+    if (pledge.provider === "razorpay" && pledge.providerSubscriptionId) {
+        try {
+            await cancelRazorpaySubscription(pledge.providerSubscriptionId);
+        } catch (error) {
+            throw new ProviderError(
+                "We could not cancel the mandate with Razorpay. Please try again in a moment.",
+                { pledgeRef: pledge.pledgeRef },
+            );
+        }
+    }
+
     const cancelled = await Pledge.findOneAndUpdate(
         {
             _id: pledge._id,
@@ -497,7 +651,12 @@ const cancelPledge = async ({ pledge, by = "donor", reason = null, logger = cons
     }
 
     try {
-        await cancelSubscription(cancelled.merchantSubscriptionId);
+        // Razorpay was already cancelled before the local flip; repeating the
+        // call would fail with "already cancelled" and leave a false pending
+        // flag behind.
+        if (cancelled.provider !== "razorpay") {
+            await cancelSubscription(cancelled.merchantSubscriptionId);
+        }
 
         await Pledge.updateOne(
             { _id: cancelled._id },
@@ -517,6 +676,10 @@ const cancelPledge = async ({ pledge, by = "donor", reason = null, logger = cons
 
 /** Pause future debits. The mandate stays alive so resuming is one click. */
 const pausePledge = async ({ pledge, reason = "Paused by donor" }) => {
+    if (pledge.provider === "razorpay" && pledge.providerSubscriptionId) {
+        await pauseRazorpaySubscription(pledge.providerSubscriptionId);
+    }
+
     const updated = await Pledge.findOneAndUpdate(
         {
             _id: pledge._id,
@@ -541,6 +704,10 @@ const pausePledge = async ({ pledge, reason = "Paused by donor" }) => {
 
 /** Resume a paused pledge; the next debit is re-scheduled one cycle out. */
 const resumePledge = async ({ pledge }) => {
+    if (pledge.provider === "razorpay" && pledge.providerSubscriptionId) {
+        await resumeRazorpaySubscription(pledge.providerSubscriptionId);
+    }
+
     const nextDebitAt =
         pledge.nextDebitAt && pledge.nextDebitAt > new Date()
             ? pledge.nextDebitAt
@@ -714,7 +881,11 @@ const retryProviderCancels = async ({ limit = 50, logger = console } = {}) => {
 
     for (const pledge of pending) {
         try {
-            await cancelSubscription(pledge.merchantSubscriptionId);
+            if (pledge.provider === "razorpay") {
+                await cancelRazorpaySubscription(pledge.providerSubscriptionId);
+            } else {
+                await cancelSubscription(pledge.merchantSubscriptionId);
+            }
             await Pledge.updateOne(
                 { _id: pledge._id },
                 { $set: { providerCancelPending: false } },

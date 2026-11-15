@@ -5,8 +5,10 @@ debited automatically from their own UPI account every month, without ever
 collecting or storing card/UPI credentials, and in full compliance with RBI's
 e-mandate (AutoPay) framework.
 
-Rail: **PhonePe UPI AutoPay (Autopay v2 APIs)** — the merchant already has a
-PhonePe PG account and settlement, so there is no new KYC or bank relationship.
+Rail: **Razorpay Subscriptions / auto-debit** (primary; the merchant is onboarded
+on Razorpay), with **PhonePe UPI AutoPay** retained as an optional fallback for
+deployments that only have PhonePe credentials. One-time donations can use either
+PhonePe or Razorpay; the donor picks on the donation page.
 
 ---
 
@@ -18,9 +20,9 @@ PhonePe PG account and settlement, so there is no new KYC or bank relationship.
 | 2 | Enters name, email, mobile, **UPI ID**, optional PAN for 80G | one short form |
 | 3 | Reads the RBI disclosure and ticks consent | "I authorise Satyalok to debit ₹500 every month…" |
 | 4 | Taps **Continue to UPI mandate** | server creates the mandate, moves to `/pledge/status` |
-| 5 | Approves the mandate **in their own UPI app** (UPI PIN = AFA) | ₹500 is collected immediately as month 1 |
+| 5 | Approves the mandate **with their bank** (UPI PIN or card OTP = AFA) | ₹500 is collected immediately as month 1 |
 | 6 | Sees "Your monthly pledge is active" + receipt email | `/pledge/status` polls and flips automatically |
-| 7 | 24h before every later debit: email notice with skip/cancel links | cron + `notify` API |
+| 7 | 24h before every later debit: pre-debit notice | Razorpay `customer_notify` (or PhonePe `notify` fallback) |
 | 8 | Monthly debit happens, receipt + 80G certificate mailed | webhook → settlement |
 | 9 | Any time: `/pledge/manage/<signed token>` → skip, pause, resume, cancel | magic link, no password |
 
@@ -51,7 +53,24 @@ Donor          React (/pledge)        API (Express)              PhonePe AutoPay
   |<-- "active" + receipt email --------------------------------------------------------|
 ```
 
-## 3. Sequence — every later month
+## 3. Sequence — every later month (Razorpay)
+
+```
+checkout handler : donor authorises mandate (UPI AutoPay / card)
+Razorpay         : subscription.activated webhook -> ACTIVE
+each month       : Razorpay charges the mandate itself (customer_notify = 1,
+                   so the RBI 24h pre-debit notice is sent by Razorpay)
+                 : subscription.charged webhook -> PledgeDebit(SUCCESS)
+                 : receipt email + 80G certificate
+failure          : subscription.pending -> Razorpay retries
+retries exhausted: subscription.halted -> PAST_DUE
+```
+
+Our cron workers only drive PhonePe Autopay pledges; Razorpay pledges are
+filtered out of `planAndNotify` (the gateway owns the schedule). The shared debit
+ledger, receipts, portal and admin console are identical for both providers.
+
+### Fallback rail — every later month (PhonePe Autopay)
 
 ```
 cron 01:05 IST : planAndNotify
@@ -164,13 +183,17 @@ sub-document (version + timestamp + IP + user agent + exact wording shown).
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| GET | `/pledge/plans` | public | capability (`available`, `comingSoon`), published tiers, limits, consent version |
+| GET | `/pledge/plans` | public | capability (`available`, `comingSoon`, `provider`, `requiresVpa`), tiers, limits, consent |
+| GET | `/payment/providers` | public | which one-time rails are configured (PhonePe / Razorpay) |
+| POST | `/payment/razorpay/order` | public, rate-limited | create a Razorpay order for a one-time donation |
+| POST | `/payment/razorpay/verify` | public, rate-limited | verify checkout HMAC, capture, book donation + receipt |
 | POST | `/pledge` | public + `Idempotency-Key` | create mandate (503 `RECURRING_COMING_SOON` while gated off) |
 | GET | `/pledge/:pledgeRef/status` | public, rate-limited | polls + reconciles with gateway |
 | GET | `/pledge/manage/:token` | signed token | portal data |
 | POST | `/pledge/manage/:token/{pause,resume,skip,cancel}` | signed token | donor self-service |
 | POST | `/pledge/recover` | public, 5/hour | email a fresh manage link |
 | POST | `/webhook/phonepe/autopay` | sha256(user:pass) | ack fast, persist, process async |
+| POST | `/webhook/razorpay` | HMAC of raw body | subscription lifecycle + one-time payment events |
 | GET | `/admin/pledges` | admin cookie | list/search/filter |
 | GET | `/admin/pledges/:id` | admin cookie | pledge + debit ledger |
 | POST | `/admin/pledges/:id/cancel` | admin cookie | audited cancellation |
@@ -232,12 +255,14 @@ SCHEDULED --notify--> NOTIFYING --ok--> NOTIFIED --24h--> REDEEMING --ok---> SUC
 
 ## 10. Go-live checklist
 
-1. Request **UPI AutoPay** enablement on the PhonePe merchant account (a separate
-   product flag from standard checkout).
-2. Generate `PHONEPE_AUTOPAY_CLIENT_ID/SECRET` (OAuth2, not `SALT_KEY`); start with
-   `PHONEPE_AUTOPAY_ENV=SANDBOX`.
-3. Set the webhook URL to `https://<api-host>/webhook/phonepe/autopay` and copy the
-   dashboard username/password into `PHONEPE_AUTOPAY_WEBHOOK_*`.
+1. In Razorpay: download the API key pair and set the webhook to
+   `https://<api-host>/webhook/razorpay` with a secret. Enable the events listed in
+   `DEPLOY-RECURRING.md`.
+2. Put `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` and
+   `RAZORPAY_ENABLED=true` on the server. Plans are created automatically the
+   first time each monthly amount is used.
+3. Optional fallback: request **UPI AutoPay** on PhonePe, then set
+   `PHONEPE_AUTOPAY_*` (OAuth2, not `SALT_KEY`) and its webhook credentials.
 4. `openssl rand -base64 48` → `PLEDGE_ENCRYPTION_KEY`, `PLEDGE_HASH_PEPPER`,
    `PLEDGE_PORTAL_SECRET` (three different values).
 5. The `/terms` and `/privacy` pages ship in the frontend; have them reviewed by
@@ -269,9 +294,9 @@ SCHEDULED --notify--> NOTIFYING --ok--> NOTIFIED --24h--> REDEEMING --ok---> SUC
 ## 12. Tests
 
 ```
-npm test                   # 20 unit tests: money, schedule, deterministic ids,
+npm test                   # 25 unit tests: money, schedule, deterministic ids,
                            # crypto, magic links, plan limits, autopay payloads,
-                           # webhook signature and event ids
+                           # webhook signatures (PhonePe + Razorpay), event ids
 npm run test:integration   # 11 scenarios against a real in-memory MongoDB:
                            # activation, idempotent replay, settlement races,
                            # failure/retry, PAST_DUE, ambiguous timeout, skip,

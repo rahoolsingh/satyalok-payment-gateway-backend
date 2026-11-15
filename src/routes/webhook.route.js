@@ -1,5 +1,6 @@
 import express from "express";
 import { phonepeAutopayWebhook } from "../controllers/pledgeWebhook.controller.js";
+import { razorpayWebhook } from "../controllers/razorpayWebhook.controller.js";
 
 /**
  * Gateway callbacks.
@@ -11,5 +12,6 @@ import { phonepeAutopayWebhook } from "../controllers/pledgeWebhook.controller.j
 const router = express.Router();
 
 router.post("/phonepe/autopay", phonepeAutopayWebhook);
+router.post("/razorpay", razorpayWebhook);
 
 export default router;

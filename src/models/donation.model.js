@@ -90,6 +90,13 @@ const donationSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // Razorpay order id for one-time donations. Sparse so every legacy
+        // PhonePe row stays valid.
+        razorpayOrderId: {
+            type: String,
+            trim: true,
+            index: { unique: true, sparse: true },
+        },
         donationDate: {
             type: Date,
             default: Date.now,
