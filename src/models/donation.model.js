@@ -48,6 +48,12 @@ const donationSchema = new mongoose.Schema(
             type: String,
             trim: true,
         },
+        // Recurring pledges keep the real PAN encrypted at rest; `panNumber`
+        // above only ever holds a masked value for these rows.
+        panEncrypted: {
+            type: String,
+            default: null,
+        },
         sendMail: {
             type: Boolean,
             required: true,
@@ -91,6 +97,31 @@ const donationSchema = new mongoose.Schema(
         donationTime: {
             type: String, // "HH:MM" format, optional — if absent time is not printed on cert
             trim: true,
+        },
+
+        // ── Recurring pledge linkage (additive, safe for existing documents) ──
+        source: {
+            type: String,
+            enum: ["one_time", "recurring", "offline", "admin"],
+            default: "one_time",
+        },
+        pledgeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Pledge",
+            default: null,
+        },
+        pledgeRef: {
+            type: String,
+            default: null,
+            index: true,
+        },
+        cycleNumber: {
+            type: Number,
+            default: null,
+        },
+        receiptSent: {
+            type: Boolean,
+            default: false,
         },
     },
     { timestamps: true },

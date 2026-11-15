@@ -343,6 +343,29 @@ const paymentConfirmation = async (req, res) => {
 const checkStatus = async (req, res) => {
 
     try {
+        // Recurring pledge debits are settled from our own ledger; they were
+        // never created through the one-time PhonePe v1 API, so asking v1 for
+        // their status would always fail.
+        if (String(req.query.id || "").startsWith("HOPER")) {
+            const record = await Donation.findOne({
+                merchantTransactionId: req.query.id,
+            });
+
+            if (!record) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Transaction not found.",
+                });
+            }
+
+            return res.json({
+                ...(record.pgResponse || {}),
+                success: record.success,
+                createdAt: record.createdAt,
+                recurring: true,
+            });
+        }
+
         const status = await paymentStatus(req.query.id);
 
         // get createdAt from database
