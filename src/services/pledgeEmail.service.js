@@ -98,7 +98,7 @@ const sendPledgeActivated = async ({ pledge, debit, logger = console }) =>
         pledge.donor.email,
         "Your monthly pledge to Satyalok is active",
         wrap({
-            title: "Your monthly pledge is live 🎉",
+            title: "Your monthly pledge is active",
             intro: `Thank you, ${pledge.donor.name}. Your mandate is approved and your first donation of ${formatRupeesINR(
                 pledge.amount,
             )} has been received. Satyalok will debit ${formatRupeesINR(

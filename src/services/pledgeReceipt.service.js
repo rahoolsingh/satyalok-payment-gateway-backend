@@ -151,7 +151,7 @@ const sendReceipt = async ({ pledge, donation, debit, logger }) => {
             ? "Tax Benefit Donation Receipt From Satyalok - A New Hope"
             : "Donation Receipt From Satyalok - A New Hope";
 
-        const summary = `Thank you for your monthly pledge! INR ${donation.amount} has been received from ${donation.name}. Mandate ${pledge.merchantSubscriptionId}, cycle ${debit.cycleNumber}.`;
+        const summary = `Thank you for your monthly pledge. INR ${donation.amount} has been received from ${donation.name}. Mandate ${pledge.merchantSubscriptionId}, cycle ${debit.cycleNumber}.`;
 
         if (donation.taxBenefit) {
             const pan = decryptField(pledge.donor.panEncrypted);
