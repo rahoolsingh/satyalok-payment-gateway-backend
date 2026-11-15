@@ -172,5 +172,52 @@ export const AUTOPAY_CONFIG = {
 };
 
 /** True when every credential the Autopay adapter needs is present. */
-export const isAutopayConfigured = () =>
-    Boolean(AUTOPAY_CONFIG.clientId && AUTOPAY_CONFIG.clientSecret);
+export const isAutopayConfigured = () => Boolean(AUTOPAY_CONFIG.clientId && AUTOPAY_CONFIG.clientSecret);
+
+/**
+ * Is the recurring programme actually switched on?
+ *
+ * Requires the explicit enable flag *and* working credentials. Anything missing
+ * means "coming soon": the pledge screens stay visible but inert, and the
+ * one-time donation flow is completely unaffected.
+ */
+export const isRecurringEnabled = () =>
+    AUTOPAY_CONFIG.enabled && isAutopayConfigured();
+
+/**
+ * Why recurring is off, in words an operator can act on. Never exposes a secret.
+ */
+export const recurringUnavailableReason = () => {
+    if (AUTOPAY_CONFIG.enabled && isAutopayConfigured()) return null;
+    if (!AUTOPAY_CONFIG.enabled) return "PHONEPE_AUTOPAY_ENABLED is not true";
+    if (!AUTOPAY_CONFIG.clientId) return "PHONEPE_AUTOPAY_CLIENT_ID is missing";
+    return "PHONEPE_AUTOPAY_CLIENT_SECRET is missing";
+};
+
+/**
+ * What the public API tells the frontend about the programme.
+ * Deliberately safe to call with no configuration at all.
+ */
+export const recurringCapability = () => {
+    const enabled = isRecurringEnabled();
+
+    return {
+        available: enabled,
+        comingSoon: !enabled,
+        // Plans are static config with no secrets, so the UI can still show what
+        // is coming instead of an empty state.
+        plans: enabled ? RECURRING_PLANS : [],
+        previewPlans: RECURRING_PLANS,
+        rules: {
+            currency: RECURRING_RULES.currency,
+            minAmount: RECURRING_RULES.minAmount,
+            maxAmount: RECURRING_RULES.maxAmount,
+            afaFreeLimitPerDebit: RECURRING_RULES.afaFreeLimitPerDebit,
+            consentVersion: RECURRING_RULES.consentVersion,
+            termsUrl: RECURRING_RULES.termsUrl,
+            privacyUrl: RECURRING_RULES.privacyUrl,
+            grievanceEmail: RECURRING_RULES.grievanceEmail,
+        },
+    };
+};
+

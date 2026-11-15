@@ -6,7 +6,7 @@ import {
     RECURRING_RULES,
     AUTOPAY_CONFIG,
     resolvePlan,
-    isAutopayConfigured,
+    isRecurringEnabled,
 } from "../config/recurring.config.js";
 import {
     AppError,
@@ -116,11 +116,11 @@ const buildConsentRecord = ({ context, version }) => ({
  * @returns {Promise<{pledge: object, authorization: object}>}
  */
 const createPledge = async ({ input, context = {}, logger = console }) => {
-    if (!isAutopayConfigured()) {
+    if (!isRecurringEnabled()) {
         throw new AppError(
-            "Monthly pledges are not open yet. Please use the one-time donation option.",
+            "Monthly giving is not open yet. You can still make a one-time donation.",
             503,
-            "AUTOPAY_NOT_CONFIGURED",
+            "RECURRING_COMING_SOON",
         );
     }
 

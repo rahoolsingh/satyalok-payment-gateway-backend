@@ -1,5 +1,5 @@
 import asyncHandler from "../utils/asyncHandler.util.js";
-import { RECURRING_PLANS, RECURRING_RULES } from "../config/recurring.config.js";
+import { recurringCapability } from "../config/recurring.config.js";
 import {
     createPledge,
     completeSetup,
@@ -46,21 +46,20 @@ const publicPledgeView = (pledge) => ({
     donorFirstName: String(pledge.donor?.name || "").split(" ")[0],
 });
 
-/** GET /pledge/plans — public catalogue so the UI never hardcodes amounts. */
+/** GET /pledge/plans — public catalogue. Never fails, even with no config. */
 const getPlans = asyncHandler(async (req, res) => {
+    const capability = recurringCapability();
+
+    // Short cache: the answer only changes when the deployment changes.
+    res.set("Cache-Control", "public, max-age=60");
+
     res.json({
         success: true,
-        plans: RECURRING_PLANS,
-        rules: {
-            currency: RECURRING_RULES.currency,
-            minAmount: RECURRING_RULES.minAmount,
-            maxAmount: RECURRING_RULES.maxAmount,
-            afaFreeLimitPerDebit: RECURRING_RULES.afaFreeLimitPerDebit,
-            consentVersion: RECURRING_RULES.consentVersion,
-            termsUrl: RECURRING_RULES.termsUrl,
-            privacyUrl: RECURRING_RULES.privacyUrl,
-            grievanceEmail: RECURRING_RULES.grievanceEmail,
-        },
+        available: capability.available,
+        comingSoon: capability.comingSoon,
+        plans: capability.plans,
+        previewPlans: capability.previewPlans,
+        rules: capability.rules,
     });
 });
 

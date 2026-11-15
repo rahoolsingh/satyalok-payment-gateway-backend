@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import Pledge, { PLEDGE_STATUS } from "../models/pledge.model.js";
-import { isAutopayConfigured } from "../config/recurring.config.js";
+import { isRecurringEnabled } from "../config/recurring.config.js";
 import {
     planAndNotify,
     executeRedemptions,
@@ -57,7 +57,7 @@ const expireStaleMandates = async ({ hours = 48 } = {}) => {
 };
 
 if (ENABLED) {
-    if (!isAutopayConfigured()) {
+    if (!isRecurringEnabled()) {
         log("Autopay credentials missing — recurring workers stay idle.");
     } else {
         // Pre-debit notifications: every hour at :05.

@@ -35,6 +35,10 @@ import {
 import pledgeRouter from "./src/routes/pledge.route.js";
 import webhookRouter from "./src/routes/webhook.route.js";
 import { errorHandler } from "./src/utils/appError.util.js";
+import {
+    isRecurringEnabled,
+    recurringUnavailableReason,
+} from "./src/config/recurring.config.js";
 
 const app = express();
 
@@ -48,6 +52,16 @@ app.use(
 );
 
 console.log("CORS enabled for:", process.env.CORS_URLS.split(","));
+
+// Make the state of the recurring programme visible at boot. Safe to print:
+// it only ever names a missing variable, never a value.
+console.log(
+    `Recurring donations: ${
+        isRecurringEnabled()
+            ? "enabled"
+            : `coming soon (${recurringUnavailableReason()})`
+    }`,
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
