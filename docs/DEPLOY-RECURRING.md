@@ -44,8 +44,10 @@ That is the honest state of a deploy without credentials.
 
 ## 2. Backend — existing CI
 
-1. Put the variables from `sampl.env` into the server's
-   `/root/Satyalok_PG_Backend/.env`. Nothing else reads them.
+1. The deploy workflow injects `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` from
+   GitHub Actions secrets into `/root/Satyalok_PG_Backend/.env`. It also
+   generates `RAZORPAY_WEBHOOK_SECRET` and the three `PLEDGE_*` secrets once on
+   the server, and registers the Razorpay webhook. Values are never printed.
 2. The recurring branch is already merged into `main`; a push to `main` is the
    deploy.
 3. The workflow SSHes in, `git pull`s, rebuilds and restarts. Watch it under
