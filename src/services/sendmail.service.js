@@ -5,9 +5,15 @@ const transporter = nodemailer.createTransport({
     port: process.env.SMTP_PORT,
     secure: true, // Use true for SSL
     auth: {
-        user: process.env.SMTP_USERNAME,
+        user: process.env.SMTP_USERNAME || process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
     },
+    // Without explicit timeouts a dead or firewalled SMTP host can block a
+    // request (or a cron worker) indefinitely. Fail fast instead, so receipt
+    // delivery can be retried without stalling the payment flow.
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10_000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10_000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 20_000),
 });
 
 const sendMail = (to, subject, text, html, attachments) => {

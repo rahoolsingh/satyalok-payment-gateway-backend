@@ -25,3 +25,5 @@ dist-ssr
 .env
 test.html
 /uploads
+# local test artefacts
+node_modules/.cache/

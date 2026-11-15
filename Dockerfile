@@ -3,7 +3,9 @@ FROM node:22-alpine
 WORKDIR /satyalok-pg-backend
 
 COPY package*.json ./
-RUN npm install
+# Production dependencies only: the test toolchain (mongodb-memory-server)
+# downloads a ~140MB mongod binary at install time and must not ship.
+RUN npm ci --omit=dev
 
 COPY . .
 

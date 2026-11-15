@@ -25,12 +25,20 @@ import {
 } from "./src/controllers/quizChampS2S.controller.js";
 
 import "./src/cron/server.js";
+import "./src/cron/pledge.cron.js";
 import verifyAdmin from "./src/middleware/verifyAdmin.middleware.js";
 import {
     getParticipantData,
     getParticipantDataBulk,
     getRollNumberWithEmail,
 } from "./src/controllers/result.controller.js";
+import pledgeRouter from "./src/routes/pledge.route.js";
+import webhookRouter from "./src/routes/webhook.route.js";
+import { errorHandler } from "./src/utils/appError.util.js";
+import {
+    isRecurringEnabled,
+    recurringUnavailableReason,
+} from "./src/config/recurring.config.js";
 
 const app = express();
 
@@ -44,6 +52,16 @@ app.use(
 );
 
 console.log("CORS enabled for:", process.env.CORS_URLS.split(","));
+
+// Make the state of the recurring programme visible at boot. Safe to print:
+// it only ever names a missing variable, never a value.
+console.log(
+    `Recurring donations: ${
+        isRecurringEnabled()
+            ? "enabled"
+            : `coming soon (${recurringUnavailableReason()})`
+    }`,
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -63,6 +81,10 @@ app.get("/", (req, res) => {
 app.use(cookieParser());
 
 app.use("/admin", adminRouter);
+
+// ─── Recurring donations (monthly pledges / UPI Autopay) ─────────────────────
+app.use("/pledge", pledgeRouter);
+app.use("/webhook", webhookRouter);
 
 app.post("/order", initiatePayment);
 
@@ -88,6 +110,9 @@ app.post("/get-participant-data-bulk", getParticipantDataBulk);
 // ─── Quiz Champ 2026 server-to-server endpoints (API key auth) ───────────────
 app.post("/quizChampOrderS2S", verifyApiKey, initiateQuizChampS2S);
 app.get("/quizChampStatusS2S", verifyApiKey, checkQuizChampStatusS2S);
+
+// Central error handler — must be registered after every route.
+app.use(errorHandler);
 
 connectDB().then(() => {
     app.listen(PORT, () => {

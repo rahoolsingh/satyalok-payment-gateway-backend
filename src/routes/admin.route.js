@@ -18,6 +18,13 @@ import {
 } from "../controllers/admin.controller.js";
 import Admin from "../models/admin.model.js";
 import verifyAdmin from "../middleware/verifyAdmin.middleware.js";
+import {
+    adminListPledges,
+    adminGetPledge,
+    adminCancelPledge,
+    adminRetryDebit,
+    adminSyncSetup,
+} from "../controllers/pledge.controller.js";
 
 const router = express.Router();
 
@@ -49,6 +56,13 @@ router.get(
     verifyAdmin,
     generate80GCertificate,
 );
+
+// ─── Recurring pledges (monthly auto-debit mandates) ─────────────────────────
+router.get("/pledges", verifyAdmin, adminListPledges);
+router.post("/pledges/sync-setup", verifyAdmin, adminSyncSetup);
+router.get("/pledges/:id", verifyAdmin, adminGetPledge);
+router.post("/pledges/:id/cancel", verifyAdmin, adminCancelPledge);
+router.post("/pledges/:id/retry", verifyAdmin, adminRetryDebit);
 
 // Auth check (for frontend page refresh guard)
 router.get("/me", verifyAdmin, checkAdminAuth);
