@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Logs and restart
+      - name: Recreate container and network
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{secrets.SSH_HOST}}
@@ -16,15 +16,19 @@ jobs:
           command_timeout: 5m
           script: |
             cd /root/Satyalok_PG_Backend
-            echo "== logs before =="
-            docker compose logs --tail=120 app || true
-            echo "== restart =="
-            docker compose restart app || true
+            echo "== down =="
+            docker compose down || true
+            echo "== up =="
+            docker compose up -d
             sleep 10
             echo "== ps =="
             docker compose ps
-            echo "== logs after =="
-            docker compose logs --tail=60 app || true
-            curl -s -o /dev/null -w 'local health: %{http_code}\n' http://127.0.0.1:5002/ || true
-            curl -s http://127.0.0.1:5002/pledge/plans | head -c 200 || true
-            echo
+            echo "== code version =="
+            docker compose exec -T app grep -c "Donation receipt" src/services/emailTemplate.js || true
+            docker compose exec -T app grep -c "generateCertificate" src/services/pledgeReceipt.service.js || true
+            echo "== local health =="
+            curl -s -o /dev/null -w 'http %{http_code}\n' http://127.0.0.1:5002/ || true
+            echo "== listeners =="
+            ss -ltnp 2>/dev/null | grep 5002 || true
+            echo "== logs =="
+            docker compose logs --tail=30 app || true
