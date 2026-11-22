@@ -40,6 +40,14 @@ jobs:
                 echo "  $k: absent"
               fi
             done
+            echo "== disk =="
+            df -h /
+            # Stale BuildKit workers from cancelled runs can wedge the daemon.
+            docker builder prune -f || true
+            # Classic builder: no attestation export, much faster on this host.
+            export DOCKER_BUILDKIT=0
+            export COMPOSE_DOCKER_CLI_BUILD=0
+
             # ── Runtime secrets/config ───────────────────────────────────
             # Values are written to .env, never echoed. Keys come from GitHub
             # Actions secrets; the encryption/webhook secrets are generated once
