@@ -7,6 +7,7 @@ import { donationReceiptEmailTemplate } from "./emailTemplate.js";
 import { decryptField } from "../utils/crypto.util.js";
 import { recurringDonationTxnId } from "../utils/reference.util.js";
 import { toRupees } from "../utils/money.util.js";
+import { buildPortalUrl } from "./magicLink.service.js";
 
 /**
  * Booking a successful recurring debit.
@@ -137,6 +138,26 @@ const issueReceiptForDebit = async ({ pledge, debit, payment, logger = console }
  */
 const sendReceipt = async ({ pledge, donation, debit, logger }) => {
     try {
+        const nextDebit = pledge.nextDebitAt
+            ? new Intl.DateTimeFormat("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+              }).format(new Date(pledge.nextDebitAt))
+            : null;
+
+        let manageUrl = null;
+
+        try {
+            manageUrl = buildPortalUrl(pledge._id);
+        } catch (error) {
+            // A missing portal secret must never block the receipt itself.
+            logger.warn?.(
+                `Portal link unavailable for ${pledge.pledgeRef}:`,
+                error?.message || error,
+            );
+        }
+
         const template = donationReceiptEmailTemplate(
             donation.amount,
             donation.merchantTransactionId,
@@ -145,13 +166,24 @@ const sendReceipt = async ({ pledge, donation, debit, logger }) => {
             donation.name,
             true,
             donation.taxBenefit,
+            {
+                monthly: true,
+                cycle: debit.cycleNumber,
+                nextDebit,
+                provider: pledge.provider === "razorpay" ? "Razorpay" : "PhonePe",
+                manageUrl,
+            },
         );
 
         const subject = donation.taxBenefit
             ? "Tax Benefit Donation Receipt From Satyalok - A New Hope"
             : "Donation Receipt From Satyalok - A New Hope";
 
-        const summary = `Thank you for your monthly pledge. INR ${donation.amount} has been received from ${donation.name}. Mandate ${pledge.merchantSubscriptionId}, cycle ${debit.cycleNumber}.`;
+        const summary =
+            `Thank you for your monthly pledge. INR ${donation.amount} has been received from ` +
+            `${donation.name}. Cycle ${debit.cycleNumber}.` +
+            (nextDebit ? ` Next debit: ${nextDebit}.` : "") +
+            (manageUrl ? ` Manage or cancel: ${manageUrl}` : "");
 
         if (donation.taxBenefit) {
             const pan = decryptField(pledge.donor.panEncrypted);

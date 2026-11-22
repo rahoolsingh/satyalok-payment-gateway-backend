@@ -166,7 +166,8 @@ de-duplicate. A genuine new attempt increments `a`, so it cannot collide.
 | Explicit validity period | `expiresAt` = start + `PLEDGE_VALIDITY_YEARS` (default 5), sent as `paymentFlow.expireAt` |
 | Fixed amount / capped variable | `amountType: FIXED`, `maxAmount` = pledged amount in paise |
 | Pre-debit notice ≥ 24h | `notify` API **and** our own email; the redeemer enforces `notifiedAt + 24h` in code (`redemptionValidAfter`) |
-| Post-debit notification | receipt email with merchant, amount, date, reference, grievance contact |
+| Post-debit notification | receipt email (same design as one-time) with merchant, amount, date, reference, cycle, next debit, a manage/cancel link and grievance contact |
+| 80G certificate | PAN captured once (encrypted), then a fresh certificate PDF is generated and attached to **every** successful monthly debit |
 | Modify / withdraw at will | `/pledge/manage/<token>`: skip, pause, resume, cancel — one click, no retention flow |
 | No customer charges | Satyalok absorbs gateway fees; nothing is billed to the donor |
 | Dispute handling | grievance email in every mail + `PaymentEvent` audit trail per callback |

@@ -55,94 +55,160 @@ const generateCertificate = async ({
 
     const amount = pgResponse.data.amount;
     const donationDate = convertToTimestamp(createdAt);
-    // Create a new PDF document
+    const txnId = pgResponse.data.transactionId || "";
+    const pdfPath = `${merchantTransactionId}.pdf`;
+    const qrPath = `${merchantTransactionId}-qr.png`;
+
+    // QR carries the receipt and transaction only. The PAN is personal data and
+    // must not be readable by anyone who photographs the certificate.
+    await QRCode.toFile(
+        qrPath,
+        JSON.stringify({
+            receipt: merchantTransactionId,
+            transaction: txnId,
+            amount: formatAmount(amount),
+        }),
+        { width: 180, margin: 1, color: { dark: "#1f1b16", light: "#ffffff" } },
+    );
+
     const doc = new PDFDocument({
-        layout: "landscape",
         size: "A4",
-        margin: 60,
+        layout: "landscape",
+        margin: 0,
+        info: {
+            Title: `Donation Certificate ${merchantTransactionId}`,
+            Author: "Satyalok - A New Hope",
+            Subject: "Section 80G donation receipt",
+        },
     });
 
-    // Stream the PDF to a file
-    doc.pipe(fs.createWriteStream(`${merchantTransactionId}.pdf`));
+    const stream = fs.createWriteStream(pdfPath);
+    doc.pipe(stream);
 
-    // Add background image
-    doc.image("certificate.png", 0, 0, { width: 841.89 });
+    const ink = "#1f1b16";
+    const muted = "#6b6257";
+    const line = "#cfc5b6";
+    const paper = "#fdfbf7";
+    const accent = "#0f5fa5";
 
-    // Add text fields
-    doc.fontSize(15)
-        .font("Times-Roman")
-        .fillColor("black")
-        .text(merchantTransactionId, 160, 228)
-        .text(donationDate, 670, 228)
-        .text(name, 180, 257)
-        .text(panNumber, 173, 287);
+    // Paper and double rule.
+    doc.rect(0, 0, 841.89, 595.28).fill(paper);
+    doc.rect(20, 20, 801.89, 555.28).lineWidth(2).stroke(ink);
+    doc.rect(28, 28, 785.89, 539.28).lineWidth(0.6).stroke(line);
 
-    // Add donation amount in green, bold font
+    // Letterhead.
+    doc.fillColor(ink)
+        .font("Helvetica-Bold")
+        .fontSize(13)
+        .text("S A T Y A L O K", 60, 48, { align: "center", width: 721.89 });
+    doc.font("Times-Italic")
+        .fontSize(11)
+        .fillColor(muted)
+        .text("A New Hope", 60, 66, { align: "center", width: 721.89 });
+
+    doc.font("Times-Bold")
+        .fontSize(30)
+        .fillColor(ink)
+        .text("Donation Certificate", 60, 100, { align: "center", width: 721.89 });
+    doc.font("Helvetica")
+        .fontSize(10)
+        .fillColor(muted)
+        .text("Section 80G  ·  Income Tax Act, 1961", 60, 140, {
+            align: "center",
+            width: 721.89,
+        });
+
+    // Certification sentence.
+    doc.font("Helvetica")
+        .fontSize(11)
+        .fillColor(muted)
+        .text("This is to certify that", 60, 186, { align: "center", width: 721.89 });
+    doc.font("Times-Bold")
+        .fontSize(24)
+        .fillColor(ink)
+        .text(String(name || ""), 60, 202, { align: "center", width: 721.89 });
+    doc.font("Helvetica")
+        .fontSize(11)
+        .fillColor(muted)
+        .text("has donated", 60, 238, { align: "center", width: 721.89 });
     doc.font("Times-Bold")
         .fontSize(20)
-        .fillColor("green")
-        .text(`Rs. ${formatAmount(amount)}`, 550, 255, {
+        .fillColor(accent)
+        .text(`Rs. ${formatAmount(amount)}`, 60, 252, {
             align: "center",
+            width: 721.89,
         });
 
-    // Add closing message
-    doc.font("Times-Roman")
-        .fontSize(10)
-        .fillColor("black")
-        .text("Thanks for your donation!", { align: "center" });
+    // Details.
+    const rows = [
+        ["Receipt number", merchantTransactionId],
+        ["Transaction id", txnId || "—"],
+        ["Date", donationDate],
+        ["Payment mode", "UPI AutoPay"],
+        ["PAN", panNumber || "—"],
+    ];
+    const startY = 304;
+    rows.forEach(([label, value], index) => {
+        const y = startY + index * 18;
+        doc.font("Helvetica")
+            .fontSize(9.5)
+            .fillColor(muted)
+            .text(label, 150, y, { width: 120 });
+        doc.font("Helvetica-Bold")
+            .fontSize(9.5)
+            .fillColor(ink)
+            .text(String(value), 280, y, { width: 280 });
+    });
 
-    // Add stamp image
-    const randomX = Math.floor(Math.random() * 10) + 660;
-    const randomY = Math.floor(Math.random() * 10) + 245;
-    doc.image("stamp.png", randomX, randomY, { width: 80 });
+    // Declaration.
+    const boxY = 410;
+    doc.roundedRect(60, boxY, 721.89, 72, 6).fill("#f7f4ee");
+    doc.font("Helvetica")
+        .fontSize(9.5)
+        .fillColor(muted)
+        .text(
+            "Donation is eligible for deduction under Section 80G of the Income Tax Act, 1961. " +
+                "This certificate is issued for the donation referenced above and is valid without a physical signature.",
+            76,
+            boxY + 14,
+            { width: 690, lineGap: 3 },
+        );
 
-    // Generate and add QR code, then finalize PDF
-    QRCode.toFile(
-        `${merchantTransactionId}-qr.png`,
-        `{
-    receipt: ${merchantTransactionId},
-    pan: ${panNumber},
-    phonePe: ${pgResponse.data.transactionId}
-}
-    `,
-        {
-            color: {
-                dark: "#000000", // Blue dots
-                light: "#0000", // Transparent background
-            },
-        }
-    )
-        .then(() => {
-            // Add the QR code image to the PDF
-            doc.image(`${merchantTransactionId}-qr.png`, 705, 70, {
-                width: 80,
-                align: "right",
-            });
+    // QR + signature.
+    doc.image(qrPath, 690, 452, { width: 76 });
+    doc.font("Helvetica")
+        .fontSize(8)
+        .fillColor(muted)
+        .text("Scan to verify", 682, 532, { width: 92, align: "center" });
 
-            // Add donation confirmation text
-            doc.fontSize(14)
-                .font("Helvetica")
-                .fillColor("black")
-                .text(
-                    `We confirm that we received a donation of Rs. ${formatAmount(
-                        amount
-                    )} from ${name} on ${donationDate} via PhonePe Payment Gateway with Transaction ID: ${pgResponse.data.transactionId
-                    }.`,
-                    60,
-                    330,
-                    {
-                        align: "justify",
-                        lineGap: 7,
-                    }
-                );
+    doc.moveTo(470, 520).lineTo(640, 520).lineWidth(0.8).stroke(line);
+    doc.font("Times-Bold")
+        .fontSize(11)
+        .fillColor(ink)
+        .text("For Satyalok - A New Hope", 470, 526, { width: 170, align: "center" });
+    doc.font("Helvetica")
+        .fontSize(8.5)
+        .fillColor(muted)
+        .text("Authorised signatory", 470, 540, { width: 170, align: "center" });
 
-            // Finalize the PDF file after all content is added
-            doc.end();
-            // console.log("PDF created successfully with QR code");
-        })
-        .catch((err) => {
-            console.error("An error occurred:", err);
-        });
+    doc.font("Helvetica")
+        .fontSize(8)
+        .fillColor(muted)
+        .text(
+            `Receipt ${merchantTransactionId}  ·  Generated ${donationDate}`,
+            60,
+            540,
+            { width: 380 },
+        );
+
+    doc.end();
+
+    await new Promise((resolve, reject) => {
+        stream.on("finish", resolve);
+        stream.on("error", reject);
+    });
+
+    fs.unlink(qrPath, () => {});
 };
 
 const deleteFiles = async (merchantTransactionId) => {

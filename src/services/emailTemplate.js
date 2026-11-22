@@ -91,10 +91,36 @@ const donationReceiptEmailTemplate = (
     transactionId,
     donorName,
     status,
-    taxBenefit
+    taxBenefit,
+    details = {}
 ) => {
-    const statusColor = status ? COLORS.success : COLORS.danger;
-    const statusText = status ? "Successful" : "Failed";
+    const date = paymentTime ? new Date(paymentTime) : new Date();
+    const dateLabel = new Intl.DateTimeFormat("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    }).format(date);
+    const statusLabel = status === false ? "Failed" : "Successful";
+    const statusColor = status === false ? COLORS.danger : COLORS.success;
+    const txn = transactionId || "—";
+    const firstName = String(donorName || "").split(" ")[0] || "there";
+
+    const monthly = details.monthly
+        ? `
+        <div style="margin-top: 28px; border: 1px solid ${COLORS.border}; border-radius: 8px; padding: 16px 18px;">
+            <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: ${COLORS.textLight}; margin-bottom: 8px;">Monthly pledge</div>
+            <table class="info-table" style="margin: 0;">
+                <tr><td style="border-bottom: 1px solid ${COLORS.border};">Cycle</td><td style="border-bottom: 1px solid ${COLORS.border}; text-align: right;">${details.cycle || 1}</td></tr>
+                <tr><td style="border-bottom: 1px solid ${COLORS.border};">Next debit</td><td style="border-bottom: 1px solid ${COLORS.border}; text-align: right;">${details.nextDebit || "—"}</td></tr>
+                <tr><td>Payment rail</td><td style="text-align: right;">${details.provider || "UPI AutoPay"}</td></tr>
+            </table>
+            ${
+                details.manageUrl
+                    ? `<a href="${details.manageUrl}" style="display: inline-block; margin-top: 14px; padding: 10px 18px; background-color: ${COLORS.primary}; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 600;">Manage or cancel</a>`
+                    : ""
+            }
+        </div>`
+        : "";
 
     return `
 <!DOCTYPE html>
@@ -104,34 +130,40 @@ ${EMAIL_HEAD}
     <div class="container">
         ${getHeader()}
         <div class="content">
-            <h1 style="margin: 0 0 16px; font-size: 24px; color: ${COLORS.text}; text-align: center;">Thank You for Your Generosity! 🌟</h1>
-            
-            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-                Dear <strong>${donorName}</strong>,<br><br>
-                We are incredibly grateful for your support. Your contribution helps us continue our mission to bring education and healthcare to those who need it most.
-            </p>
+            <p style="margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: ${COLORS.textLight};">Donation receipt</p>
+            <h1 style="margin: 0 0 18px; font-size: 26px; line-height: 1.25; color: ${COLORS.text}; font-weight: 600;">Thank you, ${firstName}.</h1>
 
-            <div class="highlight-box">
-                <span style="display: block; font-size: 14px; color: ${COLORS.textLight}; margin-bottom: 4px;">Total Donation</span>
-                <strong style="font-size: 32px; color: ${COLORS.primary};">₹${amount}</strong>
+            <div class="highlight-box" style="text-align: left; padding: 18px 20px;">
+                <div style="font-size: 12px; color: ${COLORS.textLight}; margin-bottom: 2px;">Amount received</div>
+                <div style="font-size: 34px; font-weight: 700; color: ${COLORS.text}; letter-spacing: -0.01em;">₹${amount}</div>
             </div>
 
+            <p style="font-size: 15px; line-height: 1.65; margin: 0 0 6px;">
+                Your donation reached the children in our programmes. This receipt is your record for the transaction below.
+            </p>
+
             <table class="info-table">
-                <tr><td>Reference ID</td><td>${refNumber}</td></tr>
-                <tr><td>Transaction ID</td><td>${transactionId}</td></tr>
-                <tr><td>Date & Time</td><td>${paymentTime}</td></tr>
-                <tr><td>Payment Status</td><td style="color: ${statusColor}">${statusText}</td></tr>
-                <tr><td>80G Tax Benefit</td><td>${taxBenefit ? "Applied ✅" : "Not Opted"}</td></tr>
+                <tr><td>Reference</td><td style="font-family: ui-monospace, Menlo, monospace; font-size: 13px;">${refNumber}</td></tr>
+                <tr><td>Transaction</td><td style="font-family: ui-monospace, Menlo, monospace; font-size: 13px;">${txn}</td></tr>
+                <tr><td>Date</td><td>${dateLabel}</td></tr>
+                <tr><td>Status</td><td style="color: ${statusColor};">${statusLabel}</td></tr>
+                ${details.monthly ? `<tr><td>Frequency</td><td>Monthly</td></tr>` : ""}
             </table>
 
-            ${taxBenefit 
-                ? `<div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 6px; font-size: 14px; color: #15803d; margin-top: 20px;">
-                    <strong>Tax Benefit:</strong> Your donation is eligible for tax exemption under Section 80G. Please find the official certificate attached to this email.
-                   </div>` 
-                : ''}
+            ${monthly}
 
-            <p style="font-size: 14px; color: ${COLORS.textLight}; margin-top: 24px; text-align: center;">
-                "The best way to find yourself is to lose yourself in the service of others."
+            ${
+                taxBenefit
+                    ? `<div style="margin-top: 24px; background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 14px 16px; border-radius: 8px; font-size: 14px; line-height: 1.6; color: #15803d;">
+                        <strong>Section 80G.</strong> Your PAN is on file, so the certificate for this donation is attached to this email. Keep it for your tax filing.
+                       </div>`
+                    : ""
+            }
+
+            <p style="font-size: 13px; line-height: 1.6; color: ${COLORS.textLight}; margin: 24px 0 0;">
+                Questions about this receipt? Write to
+                <a href="mailto:support@satyalok.in" style="color: ${COLORS.primary}; text-decoration: none;">support@satyalok.in</a>
+                with the reference above.
             </p>
         </div>
         ${getFooter()}
