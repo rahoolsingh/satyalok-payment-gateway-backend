@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Restore service with the current image
+      - name: Logs and restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{secrets.SSH_HOST}}
@@ -16,12 +16,15 @@ jobs:
           command_timeout: 5m
           script: |
             cd /root/Satyalok_PG_Backend
-            echo "== disk =="
-            df -h /
-            echo "== compose up (no build) =="
-            docker compose up -d
-            sleep 6
+            echo "== logs before =="
+            docker compose logs --tail=120 app || true
+            echo "== restart =="
+            docker compose restart app || true
+            sleep 10
+            echo "== ps =="
             docker compose ps
+            echo "== logs after =="
+            docker compose logs --tail=60 app || true
             curl -s -o /dev/null -w 'local health: %{http_code}\n' http://127.0.0.1:5002/ || true
             curl -s http://127.0.0.1:5002/pledge/plans | head -c 200 || true
             echo
