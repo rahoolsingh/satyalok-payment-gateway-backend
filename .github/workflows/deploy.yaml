@@ -42,8 +42,10 @@ jobs:
             done
             echo "== disk =="
             df -h /
-            # Stale BuildKit workers from cancelled runs can wedge the daemon.
-            docker builder prune -f || true
+            # Wedged BuildKit workers from cancelled runs can stall every build.
+            # A daemon restart clears them; compose brings the app back up.
+            systemctl restart docker || true
+            sleep 8
             # Classic builder: no attestation export, much faster on this host.
             export DOCKER_BUILDKIT=0
             export COMPOSE_DOCKER_CLI_BUILD=0
