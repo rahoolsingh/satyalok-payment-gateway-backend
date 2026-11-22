@@ -7,7 +7,7 @@ jobs:
   diagnose:
     runs-on: ubuntu-latest
     steps:
-      - name: Disable duplicate webhooks, keep the full one
+      - name: Restore service with the current image
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{secrets.SSH_HOST}}
@@ -16,12 +16,12 @@ jobs:
           command_timeout: 5m
           script: |
             cd /root/Satyalok_PG_Backend
-            KEY_ID=$(grep '^RAZORPAY_KEY_ID=' .env | cut -d= -f2-)
-            KEY_SECRET=$(grep '^RAZORPAY_KEY_SECRET=' .env | cut -d= -f2-)
-            for id in U0UEHUjN3nJnvV U0UEJqtq5jzoiZ; do
-              CODE=$(curl -s -o /dev/null -w '%{http_code}' -u "$KEY_ID:$KEY_SECRET" -H 'Content-Type: application/json' -X PATCH "https://api.razorpay.com/v1/webhooks/$id" -d '{"active":false}')
-              echo "disable $id -> $CODE"
-            done
-            echo "== final hooks =="
-            curl -s -u "$KEY_ID:$KEY_SECRET" https://api.razorpay.com/v1/webhooks \
-              | python3 -c "import json,sys; d=json.load(sys.stdin); print('count', d.get('count')); [print(' ', i.get('id'), 'active=', i.get('active'), 'events=', sum(1 for v in (i.get('events') or {}).values() if v)) for i in d.get('items',[])]"
+            echo "== disk =="
+            df -h /
+            echo "== compose up (no build) =="
+            docker compose up -d
+            sleep 6
+            docker compose ps
+            curl -s -o /dev/null -w 'local health: %{http_code}\n' http://127.0.0.1:5002/ || true
+            curl -s http://127.0.0.1:5002/pledge/plans | head -c 200 || true
+            echo
